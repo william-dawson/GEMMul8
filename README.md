@@ -15,9 +15,9 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
    - `cuMpSGEMM_DIR`: path to cuMpSGEMM (e.g., `cuMpSGEMM_DIR := path/to/cuMpSGEMM`)
    - Note: Please specify `ozIMMU_EF_DIR` and `cuMpSGEMM_DIR` as the parent directories of `build` directories, i.e., `build` directories are located as `ozIMMU_EF_DIR/build` and `cuMpSGEMM_DIR/build`.
 
-3. Run `make` in the project root directory to compile all files.
+3. Run `make` in the `GEMMul8` directory to compile all files.
 
-4. Run `cd testing` and then run following commands to run sample codes.
+4. Navigate to the `testing` directory and then run following commands to run sample codes.
    - `make test_f MODE="mode1 mode2 mode3"` (testrun for SGEMM emulation)
    - `make test_d MODE="mode1 mode2 mode3"` (testrun for DGEMM emulation)
    - mode list:
