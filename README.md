@@ -43,15 +43,16 @@ void *work;
 cudaMalloc(&work, worksize);
 
 // run emulation
-std::vector<double> times = gemmul8::gemm(cublas_handle,
-                                          CUBLAS_OP_N, CUBLAS_OP_N,
-                                          m, n, k,
-                                          &alpha, devA, lda,
-                                          devB, ldb,
-                                          &beta, devC, ldc,
-                                          num_moduli,
-                                          fastmode,
-                                          work);
+std::vector<double> time_breakwown(4,0);
+time_breakwown = gemmul8::gemm(cublas_handle,
+                               CUBLAS_OP_N, CUBLAS_OP_N,
+                               m, n, k,
+                               &alpha, devA, lda,
+                               devB, ldb,
+                               &beta, devC, ldc,
+                               num_moduli,
+                               fastmode,
+                               work);
 ``` 
 
 ## Attention
