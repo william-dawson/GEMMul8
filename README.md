@@ -61,7 +61,7 @@ ozIMMU_EF is from [ozIMMU](https://github.com/enp1s0/ozIMMU) by Ootomo and [Acce
 
 cuMpSGEMM is from [cuMpSGEMM](https://github.com/enp1s0/cuMpSGEMM) by Ootomo.
 
-If you use these libraries, you must agree to the licenses terms of ozIMMU, Accelerator for ozIMMU, and cuMpSGEMM in addition to the license for this code (Ozaki Scheme2).
+If you use these libraries, you must agree to the licenses terms of ozIMMU, Accelerator for ozIMMU, and cuMpSGEMM in addition to the license for GEMMul8.
 
 ## References
 
