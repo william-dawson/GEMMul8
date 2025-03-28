@@ -2,7 +2,7 @@
 
 GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme2.
 
-## Usage
+## Build
 
 1. (Option) Build `cuMpSGEMM` and `ozIMMU_EF` according to [cuMpSGEMM](https://github.com/enp1s0/cuMpSGEMM) and [ozIMMU](https://github.com/enp1s0/ozIMMU) (see also [Accelerator for ozIMMU](https://github.com/RIKEN-RCCS/accelerator_for_ozIMMU)).
 
@@ -29,6 +29,30 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
      - `make test_f MODE="watt_check"`
      - `make test_f MODE="accuracy_check flops_check"`
      - `make test_f test_d MODE="all"`
+
+## Usage
+
+```
+// settings
+const unsigned num_moduli = 14;   // #moduli (2 <= num_moduli <= 19 for SGEMM emu., 2 <= num_moduli <= 20 for DGEMM emu.)
+const bool fastmode = true;       // true (fast-mode) or false (accurate-mode)
+
+// allocate work space
+const size_t worksize = workSize(m,n,k,num_moduli);
+void *work;
+cudaMalloc(&work, worksize);
+
+// run emulation
+std::vector<double> times = gemmul8::gemm(cublas_handle,
+                                          CUBLAS_OP_N, CUBLAS_OP_N,
+                                          m, n, k,
+                                          &alpha, devA, lda,
+                                          devB, ldb,
+                                          &beta, devC, ldc,
+                                          num_moduli,
+                                          fastmode,
+                                          work);
+``` 
 
 ## Attention
 
