@@ -34,26 +34,49 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
 
 ```
 // settings
-const unsigned num_moduli = 14;   // #moduli (2 <= num_moduli <= 19 for SGEMM emu., 2 <= num_moduli <= 20 for DGEMM emu.)
+const unsigned num_moduli = 14;   // 2 <= num_moduli <= 20 for DGEMM emulation
+// const unsigned num_moduli = 6;   // 2 <= num_moduli <= 19 for SGEMM emulation
 const bool fastmode = true;       // true (fast-mode) or false (accurate-mode)
 
-// allocate work space
-const size_t worksize = workSize(m,n,k,num_moduli);
+// (if needed) allocate workspace
+const size_t worksize = gemmul8::workSize(m,n,k,num_moduli);
 void *work;
 cudaMalloc(&work, worksize);
 
+// (if needed) output variable 
+std::vector<double> time_breakwown(4,0); 
+
 // run emulation
-std::vector<double> time_breakwown(4,0);
-time_breakwown = gemmul8::gemm(cublas_handle,
-                               CUBLAS_OP_N, CUBLAS_OP_N,
-                               m, n, k,
-                               &alpha, devA, lda,
-                               devB, ldb,
-                               &beta, devC, ldc,
-                               num_moduli,
-                               fastmode,
-                               work);
-``` 
+// gemmul8::gemm returns execution time (sec.) of each part
+time_breakwown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library context
+                               CUBLAS_OP_N,     // non- or transpose devA
+                               CUBLAS_OP_N,     // non- or transpose devA
+                               m,               // Number of rows of devC
+                               n,               // Number of columns of devC
+                               k,               // Inner dimension
+                               &alpha,          // Scaling factor for devA*devB
+                               devA,            // 1-D device array of dimensions lda*k
+                               lda,             // Leading dimension of devA
+                               devB,            // 1-D device array of dimensions ldb*n
+                               ldb,             // Leading dimension of devB
+                               &beta,           // Scaling factor for devC
+                               devC,            // 1-D device array of dimensions ldc*n
+                               ldc,             // Leading dimension of devC
+                               num_moduli,      // #moduli (controlling accuracy)
+                               fastmode,        // Computing mode
+                               work);           // workspace
+```
+
+## Numerical results (DGEMM emulation on GH200)
+
+### Accuracy
+![accuracy_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_accuracy_NVIDIA_GH200_480GB.png)
+
+### Throughput performance
+![throughput_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_time_NVIDIA_GH200_480GB.png)
+
+### Power efficiency
+![power_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_watt_NVIDIA_GH200_480GB.png)
 
 ## Attention
 
