@@ -33,22 +33,30 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
 ## Usage
 
 ```
+//----------
 // settings
+//----------
 const unsigned num_moduli = 14;   // 2 <= num_moduli <= 20 for DGEMM emulation
 // const unsigned num_moduli = 6;   // 2 <= num_moduli <= 19 for SGEMM emulation
 const bool fastmode = true;       // true (fast-mode) or false (accurate-mode)
 
+//----------
 // (if needed) allocate workspace
+//----------
 const size_t worksize = gemmul8::workSize(m,n,k,num_moduli);
 void *work;
 cudaMalloc(&work, worksize);
 
+//----------
 // (if needed) output variable 
-std::vector<double> time_breakwown(4,0); 
+//----------
+std::vector<double> time_breakdown(4,0); 
 
+//----------
 // run emulation
 // gemmul8::gemm returns execution time (sec.) of each part
-time_breakwown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library context
+//----------
+time_breakdown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library context
                                CUBLAS_OP_N,     // non- or transpose devA
                                CUBLAS_OP_N,     // non- or transpose devA
                                m,               // Number of rows of devC
@@ -69,6 +77,10 @@ time_breakwown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library 
 
 ## Numerical results (DGEMM emulation on GH200)
 
+The constant $\phi$ controls the difficulty of matrix multiplication (exponent distribution of input matrices).
+
+The difficulty of $\phi = 0.5$ is comparable to that of matrix multiplication in HPL.
+
 ### Accuracy
 ![accuracy_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_accuracy_NVIDIA_GH200_480GB.png)
 
@@ -77,6 +89,17 @@ time_breakwown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library 
 
 ### Power efficiency
 ![power_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_watt_NVIDIA_GH200_480GB.png)
+
+## Numerical results (SGEMM emulation on GH200)
+
+### Accuracy
+![accuracy_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_accuracy_NVIDIA_GH200_480GB.png)
+
+### Throughput performance
+![throughput_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_time_NVIDIA_GH200_480GB.png)
+
+### Power efficiency
+![power_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_watt_NVIDIA_GH200_480GB.png)
 
 ## Attention
 
