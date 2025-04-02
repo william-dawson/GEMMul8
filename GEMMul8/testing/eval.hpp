@@ -272,12 +272,12 @@ __global__ void simple_gemm_device(size_t m, size_t n, size_t k, const double *A
     double sum2 = 0.0;
     for (int t = 0; t < (k + 32 - 1) / 32; ++t) {
         if (row < m && t * 32 + threadIdx.x < k)
-            Asub[threadIdx.y][threadIdx.x] = __ldg(A + row * k + t * 32 + threadIdx.x);
+            Asub[threadIdx.y][threadIdx.x] = __ldg(A + row + (t * 32 + threadIdx.x) * m);
         else
             Asub[threadIdx.y][threadIdx.x] = 0.0;
 
         if (col < n && t * 32 + threadIdx.y < k)
-            Bsub[threadIdx.y][threadIdx.x] = __ldg(B + (t * 32 + threadIdx.y) * n + col);
+            Bsub[threadIdx.y][threadIdx.x] = __ldg(B + col * k + (t * 32 + threadIdx.y));
         else
             Bsub[threadIdx.y][threadIdx.x] = 0.0;
 
@@ -294,8 +294,8 @@ __global__ void simple_gemm_device(size_t m, size_t n, size_t k, const double *A
     }
 
     if (row < m && col < n) {
-        C1[row * n + col] = sum1;
-        C2[row * n + col] = sum2;
+        C1[col * m + row] = sum1;
+        C2[col * m + row] = sum2;
     }
 }
 

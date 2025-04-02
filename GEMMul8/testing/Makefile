@@ -12,7 +12,7 @@ ozIMMU_EF := yes
 #===============
 # path to ozIMMU_EF (Set this if "ozIMMU_EF := yes")
 #===============
-ozIMMU_EF_DIR := ../../../ozIMMU_EF
+ozIMMU_EF_DIR := ../../ozIMMU_EF
 
 #===============
 # "cuMpSGEMM := yes" if you use the cuMpSGEMM in a sample code.
@@ -23,7 +23,7 @@ cuMpSGEMM := yes
 #===============
 # path to cuMpSGEMM (Set this if "cuMpSGEMM := yes")
 #===============
-cuMpSGEMM_DIR := ../../../cuMpSGEMM
+cuMpSGEMM_DIR := ../../cuMpSGEMM
 
 
 export PATH := $(CUDA_PATH)/bin:$(PATH)

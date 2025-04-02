@@ -48,9 +48,9 @@ void *work;
 cudaMalloc(&work, worksize);
 
 //----------
-// (if needed) output variable 
+// (if needed) output variable
 //----------
-std::vector<double> time_breakdown(4,0); 
+std::vector<double> time_breakdown(4,0);
 
 //----------
 // run emulation
@@ -82,23 +82,29 @@ The constant $\phi$ controls the difficulty of matrix multiplication (exponent d
 The difficulty of $\phi = 0.5$ is comparable to that of matrix multiplication in HPL.
 
 ### Accuracy
+
 ![accuracy_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_accuracy_NVIDIA_GH200_480GB.png)
 
 ### Throughput performance
+
 ![throughput_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_time_NVIDIA_GH200_480GB.png)
 
 ### Power efficiency
+
 ![power_dgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_d_watt_NVIDIA_GH200_480GB.png)
 
 ## Numerical results (SGEMM emulation on GH200)
 
 ### Accuracy
+
 ![accuracy_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_accuracy_NVIDIA_GH200_480GB.png)
 
 ### Throughput performance
+
 ![throughput_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_time_NVIDIA_GH200_480GB.png)
 
 ### Power efficiency
+
 ![power_sgemm](./GEMMul8/testing/results_in_paper/fig/oz2_results_f_watt_NVIDIA_GH200_480GB.png)
 
 ## Attention
@@ -111,6 +117,7 @@ If you use these libraries, you must agree to the licenses terms of ozIMMU, Acce
 
 ## References
 
+- Hiroyuki Ootomo and Rio Yokota. 2022. Recovering single precision accuracy from Tensor Cores while surpassing the FP32 theoretical peak performance. The International Journal of High Performance Computing Applications 36, 4 (2022), 475--491.
 - Hiroyuki Ootomo, Hidetaka Manabe, Kenji Harada, and Rio Yokota. 2023. Quantum Circuit Simulation by SGEMM Emulation on Tensor Cores and Automatic Precision Selection. In High Performance Computing. Springer Nature Switzerland, Cham, 259--276.
 - Hiroyuki Ootomo, Katsuhisa Ozaki, and Rio Yokota. 2024. DGEMM on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 38, 4 (2024), 297--313.
 - Yuki Uchino, Katsuhisa Ozaki, and Toshiyuki Imamura. 2025. Performance enhancement of the Ozaki Scheme on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 0, 0 (2025), 10943420241313064.
