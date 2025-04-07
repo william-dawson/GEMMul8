@@ -65,10 +65,10 @@ VERSION:
 	nvcc --version 2>&1 | tee nvcc_version
 
 test_f:
-	LD_PRELOAD=$(LD) ./$(TARGET_f) $(MODE)
+	LD_LIBRARY_PATH=$(CUDA_PATH)/lib64 LD_PRELOAD=$(LD) ./$(TARGET_f) $(MODE)
 
 test_d:
-	LD_PRELOAD=$(LD) ./$(TARGET_d) $(MODE)
+	LD_LIBRARY_PATH=$(CUDA_PATH)/lib64 LD_PRELOAD=$(LD) ./$(TARGET_d) $(MODE)
 
 clean:
 	rm -f *.o
