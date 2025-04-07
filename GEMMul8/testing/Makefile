@@ -38,14 +38,17 @@ LD:=
 ifeq ($(ozIMMU_EF),yes)
 NVCCFLAGS += -DozIMMU_EF_FLAG -I$(ozIMMU_EF_DIR)/include
 LIBS += -L$(ozIMMU_EF_DIR)/build -lozimmu
-endif
-
 ifeq ($(cuMpSGEMM),yes)
 NVCCFLAGS += -DcuMpSGEMM_FLAG -I$(cuMpSGEMM_DIR)/include
 LIBS += -L$(cuMpSGEMM_DIR)/build -lcumpsgemm
-ifeq ($(ozIMMU_EF),yes)
 LD+=$(ozIMMU_EF_DIR)/build/libozimmu.so:$(cuMpSGEMM_DIR)/build/libcumpsgemm.so
 else
+LD+=$(ozIMMU_EF_DIR)/build/libozimmu.so
+endif
+else
+ifeq ($(cuMpSGEMM),yes)
+NVCCFLAGS += -DcuMpSGEMM_FLAG -I$(cuMpSGEMM_DIR)/include
+LIBS += -L$(cuMpSGEMM_DIR)/build -lcumpsgemm
 LD+=$(cuMpSGEMM_DIR)/build/libcumpsgemm.so
 endif
 endif

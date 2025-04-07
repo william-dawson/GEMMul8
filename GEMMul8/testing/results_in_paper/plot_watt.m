@@ -50,7 +50,9 @@ for fn = 1:length(filename_f)
         OS2_accu = gflops_watt(n == n_list(ni) & contains(func,"OS2-accu"));
         plot(xx, SGEMM*ones(size(xx)), mark(1,1), 'DisplayName', "SGEMM", 'LineWidth',1);
         plot(xx, SGEMM_TF*ones(size(xx)), mark(5,1), 'DisplayName', "SGEMM-TF32", 'LineWidth',1);
-        plot(xx, FP16TCEC*ones(size(xx)), mark(2,2), 'DisplayName', "cuMpSGEMM", 'LineWidth',1);
+        if ~isempty(FP16TCEC)
+            plot(xx, FP16TCEC*ones(size(xx)), mark(2,2), 'DisplayName', "cuMpSGEMM", 'LineWidth',1);
+        end
         plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
         plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
         
@@ -117,8 +119,12 @@ for fn = 1:length(filename_d)
         OS2_fast = gflops_watt(n == n_list(ni) & contains(func,"OS2-fast"));
         OS2_accu = gflops_watt(n == n_list(ni) & contains(func,"OS2-accu"));
         plot(xx, DGEMM*ones(size(xx)), mark(1,1), 'DisplayName', "DGEMM", 'LineWidth',1);
-        plot(xx, ozIMMU_EF_8*ones(size(xx)), mark(5,2), 'DisplayName', "ozIMMU\_EF-8", 'LineWidth',1);
-        plot(xx, ozIMMU_EF_9*ones(size(xx)), mark(6,2), 'DisplayName', "ozIMMU\_EF-9", 'LineWidth',1);
+        if ~isempty(ozIMMU_EF_8)
+            plot(xx, ozIMMU_EF_8*ones(size(xx)), mark(5,2), 'DisplayName', "ozIMMU\_EF-8", 'LineWidth',1);
+        end
+        if ~isempty(ozIMMU_EF_9)
+            plot(xx, ozIMMU_EF_9*ones(size(xx)), mark(6,2), 'DisplayName', "ozIMMU\_EF-9", 'LineWidth',1);
+        end
         plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
         plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
         

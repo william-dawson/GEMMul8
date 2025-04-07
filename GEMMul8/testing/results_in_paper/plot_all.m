@@ -21,6 +21,8 @@ for i=1:length(imgList)
 end
 imgname = imgname(contains(imgname,".fig"));
 
+imgname(contains(imgname,"RTX_4090")) = [];
+
 % rearrange
 for i=1:3:length(imgname)
     tmp = imgname(i:i+2);
