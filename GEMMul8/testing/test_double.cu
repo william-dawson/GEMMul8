@@ -45,12 +45,12 @@ std::vector<mtk::ozimmu::compute_mode_t> mode_list{
 
 std::string getDeviceName() {
     cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, 0); // 0番目のデバイスを取得
+    cudaGetDeviceProperties(&deviceProp, 0);
     std::string deviceName = deviceProp.name;
 
     for (char &c : deviceName) {
         if (c == ' ' || c == '/' || c == '\\') {
-            c = '_'; // 空白や特殊文字をアンダースコアに置換
+            c = '_';
         }
     }
     return deviceName;

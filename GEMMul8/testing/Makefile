@@ -27,6 +27,7 @@ cuMpSGEMM_DIR := ../../cuMpSGEMM
 
 
 export PATH := $(CUDA_PATH)/bin:$(PATH)
+export PATH := $(CUDA_PATH)/bin/lib64:$(PATH)
 
 GPU_ARCH := $(shell nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -n 1 | tr -d '.')
 ARCHS := -gencode arch=compute_$(GPU_ARCH),code=sm_$(GPU_ARCH)

@@ -57,13 +57,13 @@ for fn = 1:length(filename_f)
             plot(xx, data, mark(mi(idx),ci(idx)), 'DisplayName', fn, 'LineWidth',1);
         end
 
-        title("$\phi=" + phi_list(p) + "$",'Interpreter','Latex','FontSize',12);
+        title("$\phi=" + phi_list(p) + "$",'Interpreter','Latex','FontSize',14);
         ylim('padded');
         yticks(10.^(-20:4:30));
         xlim(XLIM);
         xticks(XLIM(1):2:XLIM(2));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'YScale','Log','FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'YScale','Log','FontSize',14);
     end
     lgd = legend;
     lgd.Layout.Tile = 'east';
@@ -74,8 +74,8 @@ for fn = 1:length(filename_f)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
-    ylabel(t, "$\max_{ij} |(AB)_{ij} - C_{ij}|/|(AB)_{ij}|$",'Interpreter','Latex','FontSize',12);
+    title(t, env, 'FontSize',14);
+    ylabel(t, "$\max_{ij} |(AB)_{ij} - C_{ij}|/|(AB)_{ij}|$",'Interpreter','Latex','FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
 
@@ -127,13 +127,13 @@ for fn = 1:length(filename_d)
             plot(xx, data, mark(mi(idx),ci(idx)), 'DisplayName', fn, 'LineWidth',1);
         end
 
-        title("$\phi=" + phi_list(p) + "$",'Interpreter','Latex','FontSize',12);
+        title("$\phi=" + phi_list(p) + "$",'Interpreter','Latex','FontSize',14);
         ylim('padded');
         yticks(10.^(-20:4:30));
         xlim(XLIM);
         xticks(XLIM(1):2:XLIM(2));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'YScale','Log','FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'YScale','Log','FontSize',14);
     end
     lgd = legend;
     lgd.Layout.Tile = 'east';
@@ -144,8 +144,8 @@ for fn = 1:length(filename_d)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
-    ylabel(t, "$\max_{ij} |(AB)_{ij} - C_{ij}|/|(AB)_{ij}|$",'Interpreter','Latex','FontSize',12);
+    title(t, env, 'FontSize',14);
+    ylabel(t, "$\max_{ij} |(AB)_{ij} - C_{ij}|/|(AB)_{ij}|$",'Interpreter','Latex','FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
 

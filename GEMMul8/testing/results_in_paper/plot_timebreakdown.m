@@ -58,11 +58,11 @@ for fn = 1:length(filename_f)
         if ni>1
             yticklabels("");
         else
-            ylabel("%",'FontSize',12);
+            ylabel("%",'FontSize',14);
         end
         title("fast n=" + n_list(ni));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
         
         nexttile(ni + length(n_list)); hold on; grid on;
         flag = false(size(n));
@@ -81,11 +81,11 @@ for fn = 1:length(filename_f)
         if ni>1
             yticklabels("");
         else
-            ylabel("%",'FontSize',12);
+            ylabel("%",'FontSize',14);
         end
         title("accu n=" + n_list(ni));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
     end
     lgd = legend(labels);
     lgd.Layout.Tile = 'east';%'south';
@@ -96,7 +96,7 @@ for fn = 1:length(filename_f)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
+    title(t, env, 'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
     
@@ -150,11 +150,11 @@ for fn = 1:length(filename_d)
         if ni>1
             yticklabels("");
         else
-            ylabel("%",'FontSize',12);
+            ylabel("%",'FontSize',14);
         end
         title("fast n=" + n_list(ni));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
         
         nexttile(ni + length(n_list)); hold on; grid on;
         flag = false(size(n));
@@ -173,11 +173,11 @@ for fn = 1:length(filename_d)
         if ni>1
             yticklabels("");
         else
-            ylabel("%",'FontSize',12);
+            ylabel("%",'FontSize',14);
         end
         title("accu n=" + n_list(ni));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
     end
     lgd = legend(labels);
     lgd.Layout.Tile = 'east';%'south';
@@ -188,7 +188,7 @@ for fn = 1:length(filename_d)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
+    title(t, env, 'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
     

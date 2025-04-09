@@ -54,11 +54,11 @@ for fn = 1:length(filename_f)
         plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
         plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
         
-        title("n=" + n_list(ni),'FontSize',12);
+        title("n=" + n_list(ni),'FontSize',14);
         ylim('padded');
         xlim(XLIM);
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
     end
     lgd = legend;
     lgd.Layout.Tile = 'east'; %'south';
@@ -69,8 +69,8 @@ for fn = 1:length(filename_f)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
-    ylabel(t, "TFLOPS",'FontSize',12);
+    title(t, env, 'FontSize',14);
+    ylabel(t, "TFLOPS",'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
     
@@ -121,12 +121,12 @@ for fn = 1:length(filename_d)
         plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
         plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
         
-        title("n=" + n_list(ni),'FontSize',12);
+        title("n=" + n_list(ni),'FontSize',14);
         ylim('padded');
         xlim(XLIM);
         xticks(XLIM(1):2:XLIM(2));
-        xlabel("#moduli",'FontSize',12);
-        set(gca,'FontSize',12);
+        xlabel("#moduli",'FontSize',14);
+        set(gca,'FontSize',14);
     end
     lgd = legend;
     lgd.Layout.Tile = 'east'; %'south';
@@ -137,8 +137,8 @@ for fn = 1:length(filename_d)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env);
-    ylabel(t, "TFLOPS",'FontSize',12);
+    title(t, env, 'FontSize',14);
+    ylabel(t, "TFLOPS",'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
     

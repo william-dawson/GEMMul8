@@ -72,34 +72,6 @@ template <> __forceinline__ __device__ void inner_warp_sum<int32_t>(int32_t &sum
     sum += __shfl_down_sync(0xFFFFFFFFu, sum, 1);  // warp-level reduction
 }
 
-__device__ void vecsum(const int8_t *const ptr, //
-                       const unsigned length,   //
-                       int32_t *shm,            //
-                       int32_t *const out)      //
-{
-    int32_t sum = 0;
-    char4 ones{1, 1, 1, 1};
-
-    const char4 *vec_ptr = reinterpret_cast<const char4 *>(ptr);
-
-    for (unsigned i = threadIdx.x; i < length / 4; i += blockDim.x) {
-        char4 v = vec_ptr[i];
-        sum     = __dp4a(v, ones, sum);
-    }
-
-    inner_warp_sum<int32_t>(sum);
-
-    if ((threadIdx.x & 0x1f) == 0) shm[threadIdx.x >> 5] = sum;
-
-    __syncthreads();
-
-    if (threadIdx.x < 32) {
-        sum = (threadIdx.x < (blockDim.x >> 5)) ? shm[threadIdx.x] : 0;
-        inner_warp_sum<int32_t>(sum);
-        if (threadIdx.x == 0) *out = sum << 7;
-    }
-}
-
 template <typename T>
 __device__ T find_amax(const T *const ptr,    //
                        const unsigned length, //
@@ -180,28 +152,28 @@ __device__ T find_amax_and_nrm(const T *const ptr,    //
     return shm[0];
 }
 
+template <typename T> __device__ int8_t mod_8i(T a, unsigned j);
+template <> __device__ int8_t mod_8i<double>(double a, unsigned j) {
+    const auto val = oz2_table::moduli_dev[j];
+    float tmp      = __double2float_rn(fma(rint(a * val.y), val.x, a));
+    tmp            = __fmaf_rn(rintf(tmp * val.w), val.z, tmp);
+    tmp            = __fmaf_rn(rintf(tmp * val.w), val.z, tmp);
+    return static_cast<int8_t>(tmp);
+}
+template <> __device__ int8_t mod_8i<float>(float a, unsigned j) {
+    const auto val = oz2_table::modulif_dev[j];
+    float tmp      = __fmaf_rn(rintf(a * val.y), val.x, a);
+    tmp            = __fmaf_rn(rintf(tmp * val.y), val.x, tmp);
+    tmp            = __fmaf_rn(rintf(tmp * val.y), val.x, tmp);
+    return static_cast<int8_t>(tmp);
+}
+
 } // namespace
 
 namespace int8tc {
 
 __forceinline__ __device__ int compute_sft(int amax, int16_t sftA, const float log2M) {
     return sftA + __float2int_rd(__fmaf_rd(-0.51F, __log2f(__int2float_rn(amax)), log2M));
-    // return int(sftA) + __double2int_rd(__fma_rd(-0.51, log2(__int2double_rn(amax)), double(log2M)));
-}
-
-template <typename T> __device__ int8_t mod_8i(T a, unsigned j);
-template <> __device__ int8_t mod_8i<double>(double a, unsigned j) {
-    const auto val = oz2_table::moduli_dev[j];
-    float tmp      = __double2float_rn(fma(floor(a * val.y), val.x, a));
-    tmp            = __fmaf_rn(floorf(tmp * val.w), val.z, tmp);
-    return (tmp < 0) ? static_cast<int8_t>(tmp - val.z - 128.0F) : static_cast<int8_t>(tmp - 128.0F);
-}
-template <> __device__ int8_t mod_8i<float>(float a, unsigned j) {
-    const auto val = oz2_table::modulif_dev[j];
-    float tmp      = __fmaf_rn(floorf(a * val.y), val.x, a);
-    tmp            = __fmaf_rn(floorf(tmp * val.y), val.x, tmp);
-    tmp            = __fmaf_rn(floorf(tmp * val.y), val.x, tmp);
-    return (tmp < 0) ? static_cast<int8_t>(tmp - val.x - 128.0F) : static_cast<int8_t>(tmp - 128.0F);
 }
 
 template <typename T>
@@ -309,20 +281,16 @@ __global__ void scalingA_kernel(const size_t n,                         // size(
                                 int8_t *const __restrict__ A8i,         // output (lda8i * m)
                                 const size_t lda8i,                     // leading dimension
                                 int16_t *const __restrict__ sftA,       // exponent of shift values
-                                int32_t *const __restrict__ correctA,   //
-                                const size_t size_vecA,                 //
                                 const float log2M)                      // log2(M-1)/2 - 0.5
 {
     __shared__ int32_t smem[32];
     const auto row_idx = blockIdx.x;
+    const int sftAi    = sftA[row_idx];
     const int32_t amax = find_amax<int32_t>(C32i + row_idx, n, ldc32i, smem);
-    const int sft      = compute_sft(amax, sftA[row_idx], log2M);
+    const int sft      = compute_sft(amax, sftAi, log2M);
 
     const T *const __restrict__ in = A + row_idx;
     int8_t *const __restrict__ out = A8i + row_idx * lda8i;
-
-    int32_t sum[20] = {};
-    char4 ones{1, 1, 1, 1};
 
     unsigned kmax = k >> 2;
     unsigned i    = threadIdx.x;
@@ -344,8 +312,6 @@ __global__ void scalingA_kernel(const size_t n,                         // size(
             out4.w = mod_8i<T>(in4.w, j);
 
             *reinterpret_cast<char4 *>(out + j * incA8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
     }
     kmax = lda8i >> 2;
@@ -367,29 +333,7 @@ __global__ void scalingA_kernel(const size_t n,                         // size(
             out4.w = (idx + 3 < k) ? mod_8i<T>(in4.w, j) : 0;
 
             *reinterpret_cast<char4 *>(out + j * incA8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
-    }
-
-    int32_t *smem_32i = smem;
-    bool flag1        = (threadIdx.x & 0x1f) == 0;
-    bool flag2        = threadIdx.x < (blockDim.x >> 5);
-    __syncthreads();
-    for (unsigned j = 0; j < num_moduli; ++j) {
-
-        int32_t sum_tmp = sum[j];
-        inner_warp_sum<int32_t>(sum_tmp);
-
-        if (flag1) smem_32i[threadIdx.x >> 5] = sum_tmp;
-        __syncthreads();
-
-        if (threadIdx.x < 32) {
-            sum_tmp = (flag2) ? smem_32i[threadIdx.x] : 0;
-            inner_warp_sum<int32_t>(sum_tmp);
-            if (threadIdx.x == 0) correctA[j * size_vecA + row_idx] = sum_tmp << 7;
-        }
-        __syncthreads();
     }
 
     if (threadIdx.x == 0) {
@@ -409,20 +353,16 @@ __global__ void scalingB_kernel(const size_t m,                         // size(
                                 int8_t *const __restrict__ B8i,         // output (ldb8i * n)
                                 const size_t ldb8i,                     // leading dimension
                                 int16_t *const __restrict__ sftB,       // exponent of shift values
-                                int32_t *const __restrict__ correctB,   //
-                                const size_t size_vecB,                 //
                                 const float log2M)                      // log2(M-1)/2 - 0.5
 {
     __shared__ int32_t smem[32];
     const auto col_idx = blockIdx.x;
+    const int sftBi    = sftB[col_idx];
     const int32_t amax = find_amax<int32_t>(C32i + col_idx * ldc32i, m, 1u, smem);
-    const int sft      = compute_sft(amax, sftB[col_idx], log2M);
+    const int sft      = compute_sft(amax, sftBi, log2M);
 
     const T *const __restrict__ in = B + col_idx * ldb;
     int8_t *const __restrict__ out = B8i + col_idx * ldb8i;
-
-    int32_t sum[20] = {};
-    char4 ones{1, 1, 1, 1};
 
     unsigned kmax = k >> 2;
     unsigned i    = threadIdx.x;
@@ -444,8 +384,6 @@ __global__ void scalingB_kernel(const size_t m,                         // size(
             out4.w = mod_8i<T>(in4.w, j);
 
             *reinterpret_cast<char4 *>(out + j * incB8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
     }
     kmax = ldb8i >> 2;
@@ -467,46 +405,12 @@ __global__ void scalingB_kernel(const size_t m,                         // size(
             out4.w = (idx + 3 < k) ? mod_8i<T>(in4.w, j) : 0;
 
             *reinterpret_cast<char4 *>(out + j * incB8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
-    }
-
-    int32_t *smem_32i = smem;
-    bool flag1        = (threadIdx.x & 0x1f) == 0;
-    bool flag2        = threadIdx.x < (blockDim.x >> 5);
-    __syncthreads();
-    for (unsigned j = 0; j < num_moduli; ++j) {
-
-        int32_t sum_tmp = sum[j];
-        inner_warp_sum<int32_t>(sum_tmp);
-
-        if (flag1) smem_32i[threadIdx.x >> 5] = sum_tmp;
-
-        __syncthreads();
-
-        if (threadIdx.x < 32) {
-            sum_tmp = (flag2) ? smem_32i[threadIdx.x] : 0;
-            inner_warp_sum<int32_t>(sum_tmp);
-            if (threadIdx.x == 0) correctB[j * size_vecB + col_idx] = sum_tmp << 7;
-        }
-        __syncthreads();
     }
 
     if (threadIdx.x == 0) {
         sftB[col_idx] = -sft;
     }
-}
-
-int log2_nextpow2(size_t k) {
-    int log2_k = 0;
-    while ((1 << (log2_k + 1)) <= k) {
-        log2_k++;
-    }
-    if ((1 << log2_k) != k) {
-        log2_k++;
-    }
-    return log2_k;
 }
 
 template <typename T>
@@ -524,13 +428,9 @@ __inline__ void scaling(cublasHandle_t handle,        // handle
                         int8_t *const A8i,            // output (k * m)
                         const size_t lda8i,           // leading dimension
                         int16_t *const sftA,          // exponent of shift values for rows of A
-                        int32_t *const correctA,      //
-                        const size_t size_vecA,       //
                         int8_t *const B8i,            // output (k * n)
                         const size_t ldb8i,           // leading dimension
                         int16_t *const sftB,          // exponent of shift values for cols of B
-                        int32_t *const correctB,      //
-                        const size_t size_vecB,       //
                         int32_t *const C32i,          // tmp (m * n)
                         const unsigned table_idx)     //
 {
@@ -556,14 +456,14 @@ __inline__ void scaling(cublasHandle_t handle,        // handle
     cudaDeviceSynchronize();
     const float log2M = oz2_table::int8tc::log2M[table_idx]; // fld(log2(M-1)/2 - 0.5)
     if (op_A == CUBLAS_OP_N) {
-        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, correctA, size_vecA, log2M);
+        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, log2M);
     } else {
-        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(m, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, correctA, size_vecA, log2M);
+        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(m, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, log2M);
     }
     if (op_B == CUBLAS_OP_N) {
-        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, correctB, size_vecB, log2M);
+        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, log2M);
     } else {
-        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(n, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, correctB, size_vecB, log2M);
+        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(n, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, log2M);
     }
 }
 
@@ -582,33 +482,16 @@ template <> __forceinline__ __device__ int compute_sft<float>(float amax, float 
     return __float2int_rd(__fmaf_rd(-0.51F, __log2f(vecnrm), log2M)) - ilogbf(amax);
 }
 
-template <typename T> __device__ int8_t mod_8i(T a, unsigned j);
-template <> __device__ int8_t mod_8i<double>(double a, unsigned j) {
-    const auto val = oz2_table::moduli_dev[j];
-    float tmp      = __double2float_rn(fma(floor(a * val.y), val.x, a));
-    tmp            = __fmaf_rn(floorf(tmp * val.w), val.z, tmp);
-    return (tmp < 0) ? static_cast<int8_t>(tmp - val.z - 128.0F) : static_cast<int8_t>(tmp - 128.0F);
-}
-template <> __device__ int8_t mod_8i<float>(float a, unsigned j) {
-    const auto val = oz2_table::modulif_dev[j];
-    float tmp      = __fmaf_rn(floorf(a * val.y), val.x, a);
-    tmp            = __fmaf_rn(floorf(tmp * val.y), val.x, tmp);
-    tmp            = __fmaf_rn(floorf(tmp * val.y), val.x, tmp);
-    return (tmp < 0) ? static_cast<int8_t>(tmp - val.x - 128.0F) : static_cast<int8_t>(tmp - 128.0F);
-}
-
 template <typename T>
-__global__ void scalingA_kernel(const size_t k,                       // size(A,2)
-                                const size_t incA8i,                  // lda8i * m
-                                const unsigned num_moduli,            // #moduli
-                                const T *const __restrict__ A,        // input (lda * n)
-                                const size_t lda,                     // leading dimension
-                                int8_t *const __restrict__ A8i,       // output (lda8i * m)
-                                const size_t lda8i,                   // leading dimension
-                                int16_t *const __restrict__ sftA,     // exponent of shift values
-                                int32_t *const __restrict__ correctA, //
-                                const size_t size_vecA,               //
-                                const float log2M)                    // log2(M-1)/2 - 1.5
+__global__ void scalingA_kernel(const size_t k,                   // size(A,2)
+                                const size_t incA8i,              // lda8i * m
+                                const unsigned num_moduli,        // #moduli
+                                const T *const __restrict__ A,    // input (lda * n)
+                                const size_t lda,                 // leading dimension
+                                int8_t *const __restrict__ A8i,   // output (lda8i * m)
+                                const size_t lda8i,               // leading dimension
+                                int16_t *const __restrict__ sftA, // exponent of shift values
+                                const float log2M)                // log2(M-1)/2 - 1.5
 {
     __shared__ T smem[64];
     const auto row_idx             = blockIdx.x;
@@ -621,9 +504,6 @@ __global__ void scalingA_kernel(const size_t k,                       // size(A,
     }
 
     int8_t *const __restrict__ out = A8i + row_idx * lda8i;
-
-    int32_t sum[20] = {};
-    char4 ones{1, 1, 1, 1};
 
     unsigned kmax = k >> 2;
     unsigned i    = threadIdx.x;
@@ -645,8 +525,6 @@ __global__ void scalingA_kernel(const size_t k,                       // size(A,
             out4.w = mod_8i<T>(in4.w, j);
 
             *reinterpret_cast<char4 *>(out + j * incA8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
     }
     kmax = lda8i >> 2;
@@ -668,45 +546,20 @@ __global__ void scalingA_kernel(const size_t k,                       // size(A,
             out4.w = (idx + 3 < k) ? mod_8i<T>(in4.w, j) : 0;
 
             *reinterpret_cast<char4 *>(out + j * incA8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
-    }
-
-    int32_t *smem_32i = reinterpret_cast<int32_t *>(smem);
-    bool flag1        = (threadIdx.x & 0x1f) == 0;
-    bool flag2        = threadIdx.x < (blockDim.x >> 5);
-    __syncthreads();
-    for (unsigned j = 0; j < num_moduli; ++j) {
-
-        int32_t sum_tmp = sum[j];
-        inner_warp_sum<int32_t>(sum_tmp);
-
-        if (flag1) smem_32i[threadIdx.x >> 5] = sum_tmp;
-
-        __syncthreads();
-
-        if (threadIdx.x < 32) {
-            sum_tmp = (flag2) ? smem_32i[threadIdx.x] : 0;
-            inner_warp_sum<int32_t>(sum_tmp);
-            if (threadIdx.x == 0) correctA[j * size_vecA + row_idx] = sum_tmp << 7;
-        }
-        __syncthreads();
     }
 }
 
 template <typename T>
-__global__ void scalingB_kernel(const size_t k,                       // size(B,1)
-                                const size_t incB8i,                  // ldb8i * n
-                                const unsigned num_moduli,            // #moduli
-                                const T *const __restrict__ B,        // input (ldb * n)
-                                const size_t ldb,                     // leading dimension
-                                int8_t *const __restrict__ B8i,       // output (ldb8i * n)
-                                const size_t ldb8i,                   // leading dimension
-                                int16_t *const __restrict__ sftB,     // exponent of shift values
-                                int32_t *const __restrict__ correctB, //
-                                const size_t size_vecB,               //
-                                const float log2M)                    // log2(M-1)/2 - 1.5
+__global__ void scalingB_kernel(const size_t k,                   // size(B,1)
+                                const size_t incB8i,              // ldb8i * n
+                                const unsigned num_moduli,        // #moduli
+                                const T *const __restrict__ B,    // input (ldb * n)
+                                const size_t ldb,                 // leading dimension
+                                int8_t *const __restrict__ B8i,   // output (ldb8i * n)
+                                const size_t ldb8i,               // leading dimension
+                                int16_t *const __restrict__ sftB, // exponent of shift values
+                                const float log2M)                // log2(M-1)/2 - 1.5
 {
     __shared__ T smem[64];
     const auto col_idx             = blockIdx.x;
@@ -719,9 +572,6 @@ __global__ void scalingB_kernel(const size_t k,                       // size(B,
     }
 
     int8_t *const __restrict__ out = B8i + col_idx * ldb8i;
-
-    int32_t sum[20] = {};
-    char4 ones{1, 1, 1, 1};
 
     unsigned kmax = k >> 2;
     unsigned i    = threadIdx.x;
@@ -743,8 +593,6 @@ __global__ void scalingB_kernel(const size_t k,                       // size(B,
             out4.w = mod_8i<T>(in4.w, j);
 
             *reinterpret_cast<char4 *>(out + j * incB8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
     }
     kmax = ldb8i >> 2;
@@ -766,29 +614,7 @@ __global__ void scalingB_kernel(const size_t k,                       // size(B,
             out4.w = (idx + 3 < k) ? mod_8i<T>(in4.w, j) : 0;
 
             *reinterpret_cast<char4 *>(out + j * incB8i + idx) = out4;
-
-            sum[j] = __dp4a(out4, ones, sum[j]);
         }
-    }
-
-    int32_t *smem_32i = reinterpret_cast<int32_t *>(smem);
-    bool flag1        = (threadIdx.x & 0x1f) == 0;
-    bool flag2        = threadIdx.x < (blockDim.x >> 5);
-    __syncthreads();
-    for (unsigned j = 0; j < num_moduli; ++j) {
-
-        int32_t sum_tmp = sum[j];
-        inner_warp_sum<int32_t>(sum_tmp);
-
-        if (flag1) smem_32i[threadIdx.x >> 5] = sum_tmp;
-        __syncthreads();
-
-        if (threadIdx.x < 32) {
-            sum_tmp = (flag2) ? smem_32i[threadIdx.x] : 0;
-            inner_warp_sum<int32_t>(sum_tmp);
-            if (threadIdx.x == 0) correctB[j * size_vecB + col_idx] = sum_tmp << 7;
-        }
-        __syncthreads();
     }
 }
 
@@ -806,25 +632,21 @@ __inline__ void scaling(const cublasOperation_t op_A, // CUBLAS_OP_N or CUBLAS_O
                         int8_t *const A8i,            // output (k * m)
                         const size_t lda8i,           // leading dimension
                         int16_t *const sftA,          // exponent of shift values for rows of A
-                        int32_t *const correctA,      //
-                        const size_t size_vecA,       //
                         int8_t *const B8i,            // output (k * n)
                         const size_t ldb8i,           // leading dimension
                         int16_t *const sftB,          // exponent of shift values for cols of B
-                        int32_t *const correctB,      //
-                        const size_t size_vecB,       //
                         const unsigned table_idx)     //
 {
     const float log2M = oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
     if (op_A == CUBLAS_OP_N) {
-        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, correctA, size_vecA, log2M);
+        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     } else {
-        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, correctA, size_vecA, log2M);
+        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     }
     if (op_B == CUBLAS_OP_N) {
-        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, correctB, size_vecB, log2M);
+        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
     } else {
-        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, correctB, size_vecB, log2M);
+        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
     }
 }
 

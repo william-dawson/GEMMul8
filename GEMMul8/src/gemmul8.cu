@@ -33,13 +33,13 @@ size_t workSize(const size_t m,            // size(A,1) & size(C,1) <= 2^17
     const size_t sizeA     = lda8i * m;
     const size_t sizeB     = ldb8i * n;
     const size_t sizeC     = ((m * n + 15) >> 4) << 4;
-    const size_t size_vecA = (((m + 15) >> 4) << 4);
-    const size_t size_vecB = (((n + 15) >> 4) << 4);
+    const size_t size_vecA = (((m + 15) >> 4) << 4); // multiple of 16
+    const size_t size_vecB = (((n + 15) >> 4) << 4); // multiple of 16
 
     size_t total_size = 0;
     total_size += sizeof(int8_t) * (sizeA + sizeB) * num_moduli;
     total_size += sizeof(uint8_t) * sizeC * num_moduli;
-    total_size += sizeof(int32_t) * (sizeC + (size_vecA + size_vecB) * num_moduli);
+    total_size += sizeof(int32_t) * sizeC;
     total_size += sizeof(int16_t) * (size_vecA + size_vecB);
 
     return total_size;
@@ -78,22 +78,29 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // handle
     const size_t sizeA       = lda8i * m;
     const size_t sizeB       = ldb8i * n;
     const size_t sizeC       = ((m * n + 15) >> 4) << 4; // multiple of 16
-    const size_t size_vecA   = (((m + 15) >> 4) << 4);
-    const size_t size_vecB   = (((n + 15) >> 4) << 4);
+    const size_t size_vecA   = (((m + 15) >> 4) << 4);   // multiple of 16
     const unsigned table_idx = num_moduli - 2;
     const unsigned numM      = oz2_table::numM[table_idx]; // numM <= 2
     const bool is_numM_1     = numM == 1;
     constexpr int32_t one    = 1;
     constexpr int32_t zero   = 0;
 
-#if __CUDA_ARCH__ < 900
-    oz2_const::threads_scaling    = 128;
-    oz2_const::threads_conv32i8u  = 256;
+#if GEMMul8_ARCH < 89
+    oz2_const::threads_scaling    = 256;
+    oz2_const::threads_conv32i8u  = 1024;
     oz2_const::threads_invscaling = 256;
+#elif GEMMul8_ARCH < 90
+    oz2_const::threads_scaling    = 256;
+    oz2_const::threads_conv32i8u  = 128;
+    oz2_const::threads_invscaling = 64;
+#elif GEMMul8_ARCH < 100
+    oz2_const::threads_scaling    = 256;
+    oz2_const::threads_conv32i8u  = 128;
+    oz2_const::threads_invscaling = 64;
 #else
     oz2_const::threads_scaling    = 128;
-    oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 128;
+    oz2_const::threads_conv32i8u  = 256;
+    oz2_const::threads_invscaling = 512;
 #endif
     oz2_const::grids_invscaling = (m * n + oz2_const::threads_invscaling - 1) / oz2_const::threads_invscaling;
     oz2_const::grids_conv32i8u  = ((sizeC >> 2) + oz2_const::threads_conv32i8u - 1) / oz2_const::threads_conv32i8u;
@@ -101,16 +108,12 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // handle
     //------------------------------
     // set workspace (16byte align)
     //------------------------------
-    int8_t *A8i       = reinterpret_cast<int8_t *>(work);                               // lda8i*m*sizeod(int8_t)*num_moduli
-    int8_t *B8i       = A8i + sizeA * num_moduli;                                       // ldb8i*n*sizeod(int8_t)*num_moduli
-    uint8_t *C8u      = reinterpret_cast<uint8_t *>(B8i + sizeB * num_moduli);          // (m*n+15)/16*16*sizeof(uint8_t)*num_moduli
-    int32_t *C32i     = reinterpret_cast<int32_t *>(C8u + sizeC * num_moduli);          // (m*n+15)/16*16*sizeof(int32_t)
-    int32_t *correctA = C32i + sizeC;                                                   // (m+15)/16*16*sizeof(int32_t)
-    int32_t *correctB = correctA + size_vecA * num_moduli;                              // (n+15)/16*16*sizeof(int32_t)
-    int16_t *sftA     = reinterpret_cast<int16_t *>(correctB + size_vecB * num_moduli); // (m+15)/16*16*sizeof(int16_t)
-    int16_t *sftB     = sftA + size_vecA;                                               // (n+15)/16*16*sizeof(int16_t)
-
-    cudaMemset(correctA, 0, (size_vecA + size_vecB) * num_moduli * sizeof(int32_t));
+    int8_t *A8i   = reinterpret_cast<int8_t *>(work);                      // lda8i*m*sizeod(int8_t)*num_moduli
+    int8_t *B8i   = A8i + sizeA * num_moduli;                              // ldb8i*n*sizeod(int8_t)*num_moduli
+    uint8_t *C8u  = reinterpret_cast<uint8_t *>(B8i + sizeB * num_moduli); // (m*n+15)/16*16*sizeof(uint8_t)*num_moduli
+    int32_t *C32i = reinterpret_cast<int32_t *>(C8u + sizeC * num_moduli); // (m*n+15)/16*16*sizeof(int32_t)
+    int16_t *sftA = reinterpret_cast<int16_t *>(C32i + sizeC);             // (m+15)/16*16*sizeof(int16_t)
+    int16_t *sftB = sftA + size_vecA;                                      // (n+15)/16*16*sizeof(int16_t)
 
     if (is_numM_1) {
         cudaMemcpyToSymbol(oz2_table::NMi_dev, &oz2_table::NMi_1[table_idx][0], num_moduli * sizeof(double));
@@ -124,14 +127,14 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // handle
     // A =: diag(2^sftA) * A64f, A64f is integer
     // B =: B64f * diag(2^sftB), B64f is integer
     // Then, calculating mod for all moduli
-    // A8i := mod(A64f, modulus[i]) - 128 (-128 <= A8i <= 127)
-    // B8i := mod(B64f, modulus[i]) - 128 (-128 <= A8i <= 127)
+    // A8i := A64f - round(A64f/modulus[i])*modulus[i] (-128 <= A8i <= 127)
+    // B8i := B64f - round(B64f/modulus[i])*modulus[i] (-128 <= A8i <= 127)
     //------------------------------
     timing_start(timetmp);
     if (fastmode) {
-        oz2_util::vecnorm::scaling<double>(op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, correctA, size_vecA, B8i, ldb8i, sftB, correctB, size_vecB, table_idx);
+        oz2_util::vecnorm::scaling<double>(op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, B8i, ldb8i, sftB, table_idx);
     } else {
-        oz2_util::int8tc::scaling<double>(handle, op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, correctA, size_vecA, B8i, ldb8i, sftB, correctB, size_vecB, C32i, table_idx);
+        oz2_util::int8tc::scaling<double>(handle, op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, B8i, ldb8i, sftB, C32i, table_idx);
     }
     timing_stop(timetmp, timer[0]);
 
@@ -146,10 +149,10 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // handle
 
         //------------------------------
         // Calculating mod
-        // C8u[i] := mod(C32i + 128*A8i*E + 128*E*B8i + 16384*E*E, modulus[i])
+        // C8u[i] := mod(C32i, modulus[i]) >= 0
         //------------------------------
         timing_start(timetmp);
-        oz2_util::conv_32i_2_8u(i, m, sizeC, k, C32i, correctA + i * size_vecA, correctB + i * size_vecB, C8u + i * sizeC);
+        oz2_util::conv_32i_2_8u(i, sizeC, C32i, C8u + i * sizeC);
         timing_stop(timetmp, timer[2]);
     }
 
@@ -204,19 +207,26 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // handle
     const size_t sizeB       = ldb8i * n;
     const size_t sizeC       = ((m * n + 15) >> 4) << 4; // multiple of 16
     const size_t size_vecA   = (((m + 15) >> 4) << 4);
-    const size_t size_vecB   = (((n + 15) >> 4) << 4);
     const unsigned table_idx = num_moduli - 2;
     constexpr int32_t one    = 1;
     constexpr int32_t zero   = 0;
 
-#if __CUDA_ARCH__ < 900
+#if GEMMul8_ARCH < 89
+    oz2_const::threads_scaling    = 512;
+    oz2_const::threads_conv32i8u  = 1024;
+    oz2_const::threads_invscaling = 128;
+#elif GEMMul8_ARCH < 90
+    oz2_const::threads_scaling    = 512;
+    oz2_const::threads_conv32i8u  = 128;
+    oz2_const::threads_invscaling = 64;
+#elif GEMMul8_ARCH < 100
     oz2_const::threads_scaling    = 64;
     oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 256;
-#else
-    oz2_const::threads_scaling    = 1024;
-    oz2_const::threads_conv32i8u  = 128;
     oz2_const::threads_invscaling = 128;
+#else
+    oz2_const::threads_scaling    = 512;
+    oz2_const::threads_conv32i8u  = 256;
+    oz2_const::threads_invscaling = 512;
 #endif
     oz2_const::grids_invscaling = (m * n + oz2_const::threads_invscaling - 1) / oz2_const::threads_invscaling;
     oz2_const::grids_conv32i8u  = ((sizeC >> 2) + oz2_const::threads_conv32i8u - 1) / oz2_const::threads_conv32i8u;
@@ -224,18 +234,15 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // handle
     //------------------------------
     // set workspace (16byte align)
     //------------------------------
-    int8_t *A8i       = reinterpret_cast<int8_t *>(work);                               // lda8i*m*sizeod(int8_t)*num_moduli
-    int8_t *B8i       = A8i + sizeA * num_moduli;                                       // ldb8i*n*sizeod(int8_t)*num_moduli
-    uint8_t *C8u      = reinterpret_cast<uint8_t *>(B8i + sizeB * num_moduli);          // (m*n+15)/16*16*sizeof(uint8_t)*num_moduli
-    int32_t *C32i     = reinterpret_cast<int32_t *>(C8u + sizeC * num_moduli);          // (m*n+15)/16*16*sizeof(int32_t)
-    int32_t *correctA = C32i + sizeC;                                                   // (m+15)/16*16*sizeof(int32_t)
-    int32_t *correctB = correctA + size_vecA * num_moduli;                              // (n+15)/16*16*sizeof(int32_t)
-    int16_t *sftA     = reinterpret_cast<int16_t *>(correctB + size_vecB * num_moduli); // (m+15)/16*16*sizeof(int16_t)
-    int16_t *sftB     = sftA + size_vecA;                                               // (n+15)/16*16*sizeof(int16_t)
-
-    cudaMemset(correctA, 0, (size_vecA + size_vecB) * num_moduli * sizeof(int32_t));
+    int8_t *A8i   = reinterpret_cast<int8_t *>(work);                      // lda8i*m*sizeod(int8_t)*num_moduli
+    int8_t *B8i   = A8i + sizeA * num_moduli;                              // ldb8i*n*sizeod(int8_t)*num_moduli
+    uint8_t *C8u  = reinterpret_cast<uint8_t *>(B8i + sizeB * num_moduli); // (m*n+15)/16*16*sizeof(uint8_t)*num_moduli
+    int32_t *C32i = reinterpret_cast<int32_t *>(C8u + sizeC * num_moduli); // (m*n+15)/16*16*sizeof(int32_t)
+    int16_t *sftA = reinterpret_cast<int16_t *>(C32i + sizeC);             // (m+15)/16*16*sizeof(int16_t)
+    int16_t *sftB = sftA + size_vecA;                                      // (n+15)/16*16*sizeof(int16_t)
 
     cudaMemcpyToSymbol(oz2_table::NMi_dev, &oz2_table::NMi_1[table_idx][0], num_moduli * sizeof(double));
+    cudaMemcpyToSymbol(oz2_table::modulif_dev, oz2_table::modulif, num_moduli * sizeof(oz2_table::tab_t<float>));
 
     //------------------------------
     // Scaling
@@ -247,15 +254,9 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // handle
     //------------------------------
     timing_start(timetmp);
     if (fastmode) {
-        cudaMemcpyToSymbol(oz2_table::modulif_dev, oz2_table::modulif, num_moduli * sizeof(oz2_table::tab_t<float>));
-        oz2_util::vecnorm::scaling<float>(op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, correctA, size_vecA, B8i, ldb8i, sftB, correctB, size_vecB, table_idx);
+        oz2_util::vecnorm::scaling<float>(op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, B8i, ldb8i, sftB, table_idx);
     } else {
-#if __CUDA_ARCH__ < 900
-        cudaMemcpyToSymbol(oz2_table::moduli_dev, oz2_table::moduli, num_moduli * sizeof(oz2_table::tab_t<double>));
-#else
-        cudaMemcpyToSymbol(oz2_table::modulif_dev, oz2_table::modulif, num_moduli * sizeof(oz2_table::tab_t<float>));
-#endif
-        oz2_util::int8tc::scaling<float>(handle, op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, correctA, size_vecA, B8i, ldb8i, sftB, correctB, size_vecB, C32i, table_idx);
+        oz2_util::int8tc::scaling<float>(handle, op_A, op_B, m, n, k, num_moduli, A, lda, B, ldb, A8i, lda8i, sftA, B8i, ldb8i, sftB, C32i, table_idx);
     }
     timing_stop(timetmp, timer[0]);
 
@@ -273,7 +274,7 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // handle
         // C8u[i] := mod(C32i + 128*A8i*E + 128*E*B8i + 16384*E*E, modulus[i])
         //------------------------------
         timing_start(timetmp);
-        oz2_util::conv_32i_2_8u(i, m, sizeC, k, C32i, correctA + i * size_vecA, correctB + i * size_vecB, C8u + i * sizeC);
+        oz2_util::conv_32i_2_8u(i, sizeC, C32i, C8u + i * sizeC);
         timing_stop(timetmp, timer[2]);
     }
 
