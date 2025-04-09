@@ -37,7 +37,7 @@ for fn = 1:length(filename_f)
     
     fig = figure;
     fig.Position(3) = 1000;
-    fig.Position(4) = 250;
+    fig.Position(4) = 220;
     t = tiledlayout(1,length(n_list));
     for ni = 1:length(n_list)
         SGEMM    = tflops(n == n_list(ni) & func == "SGEMM");
@@ -69,7 +69,17 @@ for fn = 1:length(filename_f)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env, 'FontSize',14);
+    if contains(env,"GH200")
+        title(lgd, "GH200", 'FontSize',14);
+    elseif contains(env,"A100")
+        title(lgd, "A100 SXM4", 'FontSize',14);
+    elseif contains(env,"RTX 4090")
+        title(lgd, "RTX 4090", 'FontSize',14);
+    elseif contains(env,"RTX 5080")
+        title(lgd, "RTX 5080", 'FontSize',14);
+    else
+        title(t, env, 'FontSize',14);
+    end
     ylabel(t, "TFLOPS",'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
@@ -102,7 +112,7 @@ for fn = 1:length(filename_d)
     
     fig = figure;
     fig.Position(3) = 1000;
-    fig.Position(4) = 250;
+    fig.Position(4) = 220;
     t = tiledlayout(1,length(n_list));
     for ni = 1:length(n_list)
         DGEMM    = tflops(n == n_list(ni) & func == "DGEMM");
@@ -137,7 +147,17 @@ for fn = 1:length(filename_d)
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env, 'FontSize',14);
+    if contains(env,"GH200")
+        title(lgd, "GH200", 'FontSize',14);
+    elseif contains(env,"A100")
+        title(lgd, "A100 SXM4", 'FontSize',14);
+    elseif contains(env,"RTX 4090")
+        title(lgd, "RTX 4090", 'FontSize',14);
+    elseif contains(env,"RTX 5080")
+        title(lgd, "RTX 5080", 'FontSize',14);
+    else
+        title(t, env, 'FontSize',14);
+    end
     ylabel(t, "TFLOPS",'FontSize',14);
     t.TileSpacing = "tight";
     t.Padding = "compact";
