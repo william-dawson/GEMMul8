@@ -637,7 +637,7 @@ __inline__ void scaling(const cublasOperation_t op_A, // CUBLAS_OP_N or CUBLAS_O
                         int16_t *const sftB,          // exponent of shift values for cols of B
                         const unsigned table_idx)     //
 {
-    const float log2M = oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
+    const float log2M = (k < 32) ? (oz2_table::vecnorm::log2M[table_idx] - 2) : oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
     if (op_A == CUBLAS_OP_N) {
         scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     } else {
