@@ -4,6 +4,12 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
 
 developed by Yuki Uchino (yuki.uchino.fe (at) riken.jp).
 
+## Fork Notes
+
+```
+GEMMUL8_FMODE=0 GEMMUL8_SPLITS=10 LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64/ LD_PRELOAD=./lib/libgemmul8.so ./testing/test_wrap
+```
+
 ## Build
 
 1. (Option) Build `cuMpSGEMM` and `ozIMMU_EF` according to [cuMpSGEMM](https://github.com/enp1s0/cuMpSGEMM) and [ozIMMU](https://github.com/enp1s0/ozIMMU) (see also [Accelerator for ozIMMU](https://github.com/RIKEN-RCCS/accelerator_for_ozIMMU)).

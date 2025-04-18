@@ -6,8 +6,8 @@ CUDA_PATH := /usr/local/cuda-12.8
 #===============
 # "ozIMMU_EF := yes" if you use the ozIMMU_EF (accelerated Ozaki scheme 1) in a sample code.
 #===============
-ozIMMU_EF := yes
-# ozIMMU_EF := no
+# ozIMMU_EF := yes
+ozIMMU_EF := no
 
 #===============
 # path to ozIMMU_EF (Set this if "ozIMMU_EF := yes")
@@ -17,8 +17,8 @@ ozIMMU_EF_DIR := ../../ozIMMU_EF
 #===============
 # "cuMpSGEMM := yes" if you use the cuMpSGEMM in a sample code.
 #===============
-cuMpSGEMM := yes
-# cuMpSGEMM := no
+# cuMpSGEMM := yes
+cuMpSGEMM := no
 
 #===============
 # path to cuMpSGEMM (Set this if "cuMpSGEMM := yes")
@@ -56,14 +56,18 @@ endif
 
 TARGET_d := test_double
 TARGET_f := test_float
+TARGET_w := test_wrap
 
-all: $(TARGET_d) $(TARGET_f) VERSION
+all: $(TARGET_w) $(TARGET_d) $(TARGET_f) VERSION
 
 $(TARGET_d): $(TARGET_d).cu
 	nvcc $< $(NVCCFLAGS) $(LIBS) -o $@
 
 $(TARGET_f): $(TARGET_f).cu
 	nvcc $< $(NVCCFLAGS) $(LIBS) -o $@
+ 
+$(TARGET_w): $(TARGET_w).F90
+	gfortran $< -lblas -o $@
 
 VERSION:
 	nvcc --version 2>&1 | tee nvcc_version
