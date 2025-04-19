@@ -1,6 +1,6 @@
 # GEMMul8
 
-GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme2
+GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme II
 
 developed by Yuki Uchino (yuki.uchino.fe (at) riken.jp).
 
@@ -60,7 +60,7 @@ std::vector<double> time_breakdown(4,0);
 //----------
 time_breakdown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library context
                                CUBLAS_OP_N,     // non- or transpose devA
-                               CUBLAS_OP_N,     // non- or transpose devA
+                               CUBLAS_OP_N,     // non- or transpose devB
                                m,               // Number of rows of devC
                                n,               // Number of columns of devC
                                k,               // Inner dimension
