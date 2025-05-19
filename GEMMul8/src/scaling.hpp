@@ -476,10 +476,11 @@ template <> __forceinline__ __device__ int compute_sft<double>(double amax, doub
     const int exponent  = ilogb(vecnrm);
     const float vecnrmf = __double2float_ru(scalbn(vecnrm, -exponent));
     const int k         = __float2int_rd(__fmaf_rd(-0.51F, __fadd_ru(__log2f(vecnrmf), exponent), log2M));
-    return k - ilogb(amax);
+    return min(__float2int_rd(log2M - 1.0f), k) - ilogb(amax);
 }
 template <> __forceinline__ __device__ int compute_sft<float>(float amax, float vecnrm, const float log2M) {
-    return __float2int_rd(__fmaf_rd(-0.51F, __log2f(vecnrm), log2M)) - ilogbf(amax);
+    const int k = __float2int_rd(__fmaf_rd(-0.51F, __log2f(vecnrm), log2M));
+    return min(__float2int_rd(log2M - 1.0f), k) - ilogbf(amax);
 }
 
 template <typename T>
@@ -637,7 +638,7 @@ __inline__ void scaling(const cublasOperation_t op_A, // CUBLAS_OP_N or CUBLAS_O
                         int16_t *const sftB,          // exponent of shift values for cols of B
                         const unsigned table_idx)     //
 {
-    const float log2M = (k < 64) ? (oz2_table::vecnorm::log2M[table_idx] - 3) : oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
+    const float log2M = oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
     if (op_A == CUBLAS_OP_N) {
         scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     } else {
