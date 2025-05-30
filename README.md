@@ -65,9 +65,9 @@ time_breakdown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library 
                                n,               // Number of columns of devC
                                k,               // Inner dimension
                                &alpha,          // Scaling factor for devA*devB
-                               devA,            // 1-D device array of dimensions lda*k (CUBLAS_OP_N) or lda*m (CUBLAS_OP_T)
+                               devA,            // 1-D device array of dimensions lda*k
                                lda,             // Leading dimension of devA
-                               devB,            // 1-D device array of dimensions ldb*n (CUBLAS_OP_N) or ldb*k (CUBLAS_OP_T)
+                               devB,            // 1-D device array of dimensions ldb*n
                                ldb,             // Leading dimension of devB
                                &beta,           // Scaling factor for devC
                                devC,            // 1-D device array of dimensions ldc*n
