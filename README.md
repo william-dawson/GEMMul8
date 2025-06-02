@@ -1,6 +1,6 @@
 # GEMMul8
 
-GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme2
+GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme II
 
 developed by Yuki Uchino (yuki.uchino.fe (at) riken.jp).
 
@@ -66,14 +66,14 @@ std::vector<double> time_breakdown(4,0);
 //----------
 time_breakdown = gemmul8::gemm(cublas_handle,   // Handle to the cuBLAS library context
                                CUBLAS_OP_N,     // non- or transpose devA
-                               CUBLAS_OP_N,     // non- or transpose devA
+                               CUBLAS_OP_N,     // non- or transpose devB
                                m,               // Number of rows of devC
                                n,               // Number of columns of devC
                                k,               // Inner dimension
                                &alpha,          // Scaling factor for devA*devB
-                               devA,            // 1-D device array of dimensions lda*k
+                               devA,            // 1-D device array of dimensions lda*k (CUBLAS_OP_N) or lda*m (CUBLAS_OP_T)
                                lda,             // Leading dimension of devA
-                               devB,            // 1-D device array of dimensions ldb*n
+                               devB,            // 1-D device array of dimensions ldb*n (CUBLAS_OP_N) or ldb*k (CUBLAS_OP_T)
                                ldb,             // Leading dimension of devB
                                &beta,           // Scaling factor for devC
                                devC,            // 1-D device array of dimensions ldc*n
@@ -128,7 +128,7 @@ If you use these libraries, you must agree to the licenses terms of ozIMMU, Acce
 - Hiroyuki Ootomo and Rio Yokota. 2022. Recovering single precision accuracy from Tensor Cores while surpassing the FP32 theoretical peak performance. The International Journal of High Performance Computing Applications 36, 4 (2022), 475--491.
 - Hiroyuki Ootomo, Hidetaka Manabe, Kenji Harada, and Rio Yokota. 2023. Quantum Circuit Simulation by SGEMM Emulation on Tensor Cores and Automatic Precision Selection. In High Performance Computing. Springer Nature Switzerland, Cham, 259--276.
 - Hiroyuki Ootomo, Katsuhisa Ozaki, and Rio Yokota. 2024. DGEMM on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 38, 4 (2024), 297--313.
-- Yuki Uchino, Katsuhisa Ozaki, and Toshiyuki Imamura. 2025. Performance enhancement of the Ozaki Scheme on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 0, 0 (2025), 10943420241313064.
+- Yuki Uchino, Katsuhisa Ozaki, and Toshiyuki Imamura. 2025. Performance enhancement of the Ozaki Scheme on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 39, 3 (2025), 462--476.
 
 ## Citation
 
