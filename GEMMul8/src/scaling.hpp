@@ -72,11 +72,12 @@ template <> __forceinline__ __device__ void inner_warp_sum<int32_t>(int32_t &sum
     sum += __shfl_down_sync(0xFFFFFFFFu, sum, 1);  // warp-level reduction
 }
 
+// return max(abs(ptr[0:inc:length-1]))
 template <typename T>
 __device__ T find_amax(const T *const ptr,    //
                        const unsigned length, //
                        const unsigned inc,    // leading dimension
-                       T *shm)                //
+                       T *shm)                // shared memory (workspace)
 {
     // max in thread
     T amax = Tzero<T>();
@@ -103,12 +104,13 @@ __device__ T find_amax(const T *const ptr,    //
     return shm[0];
 }
 
+// return max(abs(ptr[0:inc:length-1])) and sum_{i=0}^{length-1}(ptr[i]^2)
 template <typename T>
 __device__ T find_amax_and_nrm(const T *const ptr,    //
                                const unsigned length, //
                                const unsigned inc,    // leading dimension
-                               T *shm,                //
-                               T &vecnrm)             //
+                               T *shm,                // shared memory (workspace)
+                               T &vecnrm)             // 2-norm^2
 {
     T *shm1 = shm;
     T *shm2 = shm + 32;
@@ -152,6 +154,7 @@ __device__ T find_amax_and_nrm(const T *const ptr,    //
     return shm[0];
 }
 
+// calculate mod: a - round(a/p(j))*p(j)
 template <typename T> __device__ int8_t mod_8i(T a, unsigned j);
 template <> __device__ int8_t mod_8i<double>(double a, unsigned j) {
     const auto val = oz2_table::moduli_dev[j];
@@ -176,6 +179,7 @@ __forceinline__ __device__ int compute_sft(int amax, int16_t sftA, const float l
     return sftA + __float2int_rd(__fmaf_rd(-0.51F, __log2f(__int2float_rn(amax)), log2M));
 }
 
+// extract first 7-bit of A^T
 template <typename T>
 __global__ void extract_A8i_kernel(const size_t k,                   // size(A,2)
                                    const T *const __restrict__ A,    // input (lda * k)
@@ -222,6 +226,7 @@ __global__ void extract_A8i_kernel(const size_t k,                   // size(A,2
     }
 }
 
+// extract first 7-bit of B
 template <typename T>
 __global__ void extract_B8i_kernel(const size_t k,                   // size(B,1)
                                    const T *const __restrict__ B,    // input (ldb * n)
@@ -269,6 +274,7 @@ __global__ void extract_B8i_kernel(const size_t k,                   // size(B,1
     }
 }
 
+// convert trunc(diag(2^sftA)*A)^T to A8i
 template <typename T>
 __global__ void scalingA_kernel(const size_t n,                         // size(C,2)
                                 const size_t k,                         // size(A,2)
@@ -341,6 +347,7 @@ __global__ void scalingA_kernel(const size_t n,                         // size(
     }
 }
 
+// convert trunc(B*diag(2^sftB)) to B8i
 template <typename T>
 __global__ void scalingB_kernel(const size_t m,                         // size(C,1)
                                 const size_t k,                         // size(B,1)
@@ -413,6 +420,7 @@ __global__ void scalingB_kernel(const size_t m,                         // size(
     }
 }
 
+// convert trunc(A^T*diag(2^sftA))^T to A8i
 template <typename T>
 __global__ void scalingAT_kernel(const size_t n,                         // size(C,2)
                                  const size_t k,                         // size(AT,1)
@@ -485,6 +493,7 @@ __global__ void scalingAT_kernel(const size_t n,                         // size
     }
 }
 
+// convert trunc(diag(2^sftB)*B^T) to B8i
 template <typename T>
 __global__ void scalingBT_kernel(const size_t m,                         // size(C,1)
                                  const size_t k,                         // size(B,2)
@@ -558,24 +567,26 @@ __global__ void scalingBT_kernel(const size_t m,                         // size
 }
 
 template <typename T>
-__inline__ void scaling(cublasHandle_t handle,        // handle
+__inline__ void scaling(cublasHandle_t handle,        // Handle to the cuBLAS library context
                         const cublasOperation_t op_A, // CUBLAS_OP_N or CUBLAS_OP_T
                         const cublasOperation_t op_B, // CUBLAS_OP_N or CUBLAS_OP_T
-                        const size_t m,               // size(A,1) & size(C,1)
-                        const size_t n,               // size(B,2) & size(C,2)
-                        const size_t k,               // size(A,2) & size(B,1)
+                        const size_t m,               // Number of rows of C
+                        const size_t n,               // Number of columns of C
+                        const size_t k,               // Inner dimension
                         const unsigned num_moduli,    // #moduli
                         const T *const A,             // input
                         const size_t lda,             // leading dimension
                         const T *const B,             // input
                         const size_t ldb,             // leading dimension
-                        int8_t *const A8i,            // output (k * m)
+                        int8_t *const A8i,            // output (lda8i * m)
                         const size_t lda8i,           // leading dimension
+                        const size_t incA8i,          // increment between the A8i
                         int16_t *const sftA,          // exponent of shift values for rows of A
-                        int8_t *const B8i,            // output (k * n)
+                        int8_t *const B8i,            // output (ldb8i * n)
                         const size_t ldb8i,           // leading dimension
+                        const size_t incB8i,          // increment between the B8i
                         int16_t *const sftB,          // exponent of shift values for cols of B
-                        int32_t *const C32i,          // tmp (m * n)
+                        int32_t *const C32i,          // tmp (m_pad * n)
                         const unsigned table_idx)     //
 {
     // extract first 7-bit from A and B
@@ -593,21 +604,22 @@ __inline__ void scaling(cublasHandle_t handle,        // handle
     // C32i := A8i^T*B8i
     constexpr int32_t alpha = 1;
     constexpr int32_t beta  = 0;
+    const size_t m_pad      = ((m + 3) >> 2) << 2;
     cudaDeviceSynchronize();
-    cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, lda8i, &alpha, A8i, CUDA_R_8I, lda8i, B8i, CUDA_R_8I, ldb8i, &beta, C32i, CUDA_R_32I, m, CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT);
+    cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, m_pad, n, lda8i, &alpha, A8i, CUDA_R_8I, lda8i, B8i, CUDA_R_8I, ldb8i, &beta, C32i, CUDA_R_32I, m_pad, CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT);
 
     // extract high order bits from A and B
     cudaDeviceSynchronize();
     const float log2M = oz2_table::int8tc::log2M[table_idx]; // fld(log2(M-1)/2 - 0.5)
     if (op_A == CUBLAS_OP_N) {
-        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, log2M);
+        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, incA8i, num_moduli, A, lda, C32i, m_pad, A8i, lda8i, sftA, log2M);
     } else {
-        scalingAT_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, lda8i * m, num_moduli, A, lda, C32i, m, A8i, lda8i, sftA, log2M);
+        scalingAT_kernel<T><<<m, oz2_const::threads_scaling>>>(n, k, incA8i, num_moduli, A, lda, C32i, m_pad, A8i, lda8i, sftA, log2M);
     }
     if (op_B == CUBLAS_OP_N) {
-        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, log2M);
+        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, incB8i, num_moduli, B, ldb, C32i, m_pad, B8i, ldb8i, sftB, log2M);
     } else {
-        scalingBT_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, ldb8i * n, num_moduli, B, ldb, C32i, m, B8i, ldb8i, sftB, log2M);
+        scalingBT_kernel<T><<<n, oz2_const::threads_scaling>>>(m, k, incB8i, num_moduli, B, ldb, C32i, m_pad, B8i, ldb8i, sftB, log2M);
     }
 }
 
@@ -627,6 +639,7 @@ template <> __forceinline__ __device__ int compute_sft<float>(float amax, float 
     return min(__float2int_rd(log2M - 1.0f), k) - ilogbf(amax);
 }
 
+// convert trunc(diag(2^sftA)*A)^T to A8i
 template <typename T>
 __global__ void scalingA_kernel(const size_t k,                   // size(A,2)
                                 const size_t incA8i,              // lda8i * m
@@ -695,6 +708,7 @@ __global__ void scalingA_kernel(const size_t k,                   // size(A,2)
     }
 }
 
+// convert trunc(B*diag(2^sftB)) to B8i
 template <typename T>
 __global__ void scalingB_kernel(const size_t k,                   // size(B,1)
                                 const size_t incB8i,              // ldb8i * n
@@ -766,32 +780,34 @@ __global__ void scalingB_kernel(const size_t k,                   // size(B,1)
 template <typename T>
 __inline__ void scaling(const cublasOperation_t op_A, // CUBLAS_OP_N or CUBLAS_OP_T
                         const cublasOperation_t op_B, // CUBLAS_OP_N or CUBLAS_OP_T
-                        const size_t m,               // size(A,1) & size(C,1)
-                        const size_t n,               // size(B,2) & size(C,2)
-                        const size_t k,               // size(A,2) & size(B,1)
+                        const size_t m,               // Number of rows of C
+                        const size_t n,               // Number of columns of C
+                        const size_t k,               // Inner dimension
                         const unsigned num_moduli,    // #moduli
                         const T *const A,             // input
                         const size_t lda,             // leading dimension
                         const T *const B,             // input
                         const size_t ldb,             // leading dimension
-                        int8_t *const A8i,            // output (k * m)
+                        int8_t *const A8i,            // output (lda8i * m)
                         const size_t lda8i,           // leading dimension
+                        const size_t incA8i,          // increment between the A8i
                         int16_t *const sftA,          // exponent of shift values for rows of A
-                        int8_t *const B8i,            // output (k * n)
+                        int8_t *const B8i,            // output (ldb8i * n)
                         const size_t ldb8i,           // leading dimension
+                        const size_t incB8i,          // increment between the B8i
                         int16_t *const sftB,          // exponent of shift values for cols of B
                         const unsigned table_idx)     //
 {
     const float log2M = oz2_table::vecnorm::log2M[table_idx]; // fld(log2(M-1)/2 - 1.5)
     if (op_A == CUBLAS_OP_N) {
-        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
+        scalingA_kernel<T><<<m, oz2_const::threads_scaling>>>(k, incA8i, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     } else {
-        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(k, lda8i * m, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
+        scalingB_kernel<T><<<m, oz2_const::threads_scaling>>>(k, incA8i, num_moduli, A, lda, A8i, lda8i, sftA, log2M);
     }
     if (op_B == CUBLAS_OP_N) {
-        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
+        scalingB_kernel<T><<<n, oz2_const::threads_scaling>>>(k, incB8i, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
     } else {
-        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(k, ldb8i * n, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
+        scalingA_kernel<T><<<n, oz2_const::threads_scaling>>>(k, incB8i, num_moduli, B, ldb, B8i, ldb8i, sftB, log2M);
     }
 }
 
