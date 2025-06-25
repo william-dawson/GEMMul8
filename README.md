@@ -2,7 +2,14 @@
 
 GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki Scheme II
 
-developed by Yuki Uchino (yuki.uchino.fe (at) riken.jp).
+## Contact
+
+- Yuki Uchino (yuki.uchino.fe (at) riken.jp)
+
+## Authors
+
+- Yuki Uchino - RIKEN Center for Computational Science, Japan
+- Patrick Gutsche - École Normale Supérieure de Lyon, France/Intern at RIKEN Center for Computational Science, Japan
 
 ## Build
 
