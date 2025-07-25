@@ -233,7 +233,7 @@ __global__ void inverse_scaling_2_10(const unsigned num_moduli,
         C64f2                = fma(NMi2, C8u_tmp, C64f2);                        // not error-free
     }
 
-    const double quot  = -rint(fma(C64f1, invM, C64f2 * invM));
+    const double quot  = -rint(C64f1 * invM); // -rint(fma(C64f1, invM, C64f2 * invM));
     const double tmpC1 = fma(quot, M1, C64f1) + C64f2;
     double tmpC2       = fma(quot, M2, tmpC1);
     tmpC2              = scalbn(tmpC2, sftA[row] + sftB[col]);
@@ -272,7 +272,7 @@ __global__ void inverse_scaling_2_11(const unsigned num_moduli,
         C64f2                = fma(NMi2, C8u_tmp, C64f2);                        // not error-free
     }
 
-    const double quot  = -rint(fma(C64f1, invM, C64f2 * invM));
+    const double quot  = -rint(C64f1 * invM); // -rint(fma(C64f1, invM, C64f2 * invM));
     const double tmpC1 = fma(quot, M1, C64f1) + C64f2;
     double tmpC2       = fma(quot, M2, tmpC1);
     tmpC2              = scalbn(tmpC2, sftA[row] + sftB[col]);
@@ -312,7 +312,7 @@ __global__ void inverse_scaling_2_1b(const double beta,                      //
         C64f2                = fma(NMi2, C8u_tmp, C64f2);                        // not error-free
     }
 
-    const double quot  = -rint(fma(C64f1, invM, C64f2 * invM));
+    const double quot  = -rint(C64f1 * invM); // -rint(fma(C64f1, invM, C64f2 * invM));
     const double tmpC1 = fma(quot, M1, C64f1) + C64f2;
     double tmpC2       = fma(quot, M2, tmpC1);
     tmpC2              = scalbn(tmpC2, sftA[row] + sftB[col]);
@@ -352,7 +352,7 @@ __global__ void inverse_scaling_2_a1(const double alpha,                     //
         C64f2                = fma(NMi2, C8u_tmp, C64f2);                        // not error-free
     }
 
-    const double quot  = -rint(fma(C64f1, invM, C64f2 * invM));
+    const double quot  = -rint(C64f1 * invM); // -rint(fma(C64f1, invM, C64f2 * invM));
     const double tmpC1 = fma(quot, M1, C64f1) + C64f2;
     double tmpC2       = fma(quot, M2, tmpC1);
     tmpC2              = scalbn(tmpC2, sftA[row] + sftB[col]);
@@ -393,7 +393,7 @@ __global__ void inverse_scaling_2_ab(const double alpha,                     //
         C64f2                = fma(NMi2, C8u_tmp, C64f2);                        // not error-free
     }
 
-    const double quot  = -rint(fma(C64f1, invM, C64f2 * invM));
+    const double quot  = -rint(C64f1 * invM); // -rint(fma(C64f1, invM, C64f2 * invM));
     const double tmpC1 = fma(quot, M1, C64f1) + C64f2;
     double tmpC2       = fma(quot, M2, tmpC1);
     tmpC2              = scalbn(tmpC2, sftA[row] + sftB[col]);
