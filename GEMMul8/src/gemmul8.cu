@@ -15,7 +15,6 @@ void timing_stop(std::chrono::system_clock::time_point &timetmp, double &timer) 
     cudaDeviceSynchronize();
     timer += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now() - timetmp).count();
 }
-
 } // namespace
 
 namespace gemmul8 {
@@ -26,7 +25,7 @@ namespace gemmul8 {
 size_t workSize(const size_t m,            // Number of rows of C
                 const size_t n,            // Number of columns of C
                 const size_t k,            // Inner dimension <= 2^17
-                const unsigned num_moduli) // #moduli, 2 <= num_moduli <= (DGEMM emulation) ? 20 : 19
+                const unsigned num_moduli) // #moduli, 2 <= num_moduli <= (DGEMM emulation) ? 20 : 18
 {
     const size_t lda8i     = ((k + 15) >> 4) << 4; // multiple of 16
     const size_t ldb8i     = lda8i;
@@ -87,23 +86,48 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // Handle to the 
     constexpr int32_t one    = 1;
     constexpr int32_t zero   = 0;
 
-#if GEMMul8_ARCH < 89
-    oz2_const::threads_scaling    = 256;
-    oz2_const::threads_conv32i8u  = 1024;
-    oz2_const::threads_invscaling = 256;
-#elif GEMMul8_ARCH < 90
-    oz2_const::threads_scaling    = 256;
-    oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 64;
-#elif GEMMul8_ARCH < 100
-    oz2_const::threads_scaling    = 256;
-    oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 64;
+#if defined(THREADS1)
+    oz2_const::threads_scaling = THREADS1;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_scaling = 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_scaling = 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_scaling = (fastmode) ? 256 : ((lda8i > 4096) ? 512 : 256);
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_scaling = (fastmode) ? 128 : 256;
 #else
-    oz2_const::threads_scaling    = 128;
-    oz2_const::threads_conv32i8u  = 256;
-    oz2_const::threads_invscaling = 512;
+    oz2_const::threads_scaling = 256;
 #endif
+
+#if defined(THREADS2)
+    oz2_const::threads_conv32i8u = THREADS2;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_conv32i8u = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_conv32i8u = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_conv32i8u = (sizeC > 16777216) ? 128 : 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_conv32i8u = 256;
+#else
+    oz2_const::threads_conv32i8u = 256;
+#endif
+
+#if defined(THREADS3)
+    oz2_const::threads_invscaling = THREADS3;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_invscaling = 512;
+#else
+    oz2_const::threads_invscaling = 256;
+#endif
+
     oz2_const::grids_invscaling = (m * n + oz2_const::threads_invscaling - 1) / oz2_const::threads_invscaling;
     oz2_const::grids_conv32i8u  = ((sizeC >> 2) + oz2_const::threads_conv32i8u - 1) / oz2_const::threads_conv32i8u;
 
@@ -166,7 +190,7 @@ std::vector<double> gemm<double>(cublasHandle_t handle,        // Handle to the 
     //      M := prod(modulus[all]),
     //      mod(Ni*Mi, modulus[i]) == 1.
     // C := C64f - round(C64f/M)*M
-    // C := diag(2^sftA) * C * diag(2^sftB)
+    // C := diag(2^-sftA) * C * diag(2^-sftB)
     //------------------------------
     timing_start(timetmp);
     oz2_util::inverse_scaling(is_numM_1, num_moduli, m, n, C8u, m_pad, sizeC, C, ldc, sftA, sftB, *alpha, *beta);
@@ -190,7 +214,7 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // Handle to the c
                                 const float *beta,            // Scaling factor for C
                                 float *const C,               // 1-D device array of dimensions ldc*n
                                 const size_t ldc,             // Leading dimension of C
-                                const unsigned num_moduli,    // #moduli, 2 <= num_moduli <= 19
+                                const unsigned num_moduli,    // #moduli, 2 <= num_moduli <= 18
                                 const bool fastmode,          // false (accurate mode) or true (fast mode)
                                 void *const work)             // workspace allocated in advance
 {
@@ -214,23 +238,48 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // Handle to the c
     constexpr int32_t one    = 1;
     constexpr int32_t zero   = 0;
 
-#if GEMMul8_ARCH < 89
-    oz2_const::threads_scaling    = 512;
-    oz2_const::threads_conv32i8u  = 1024;
-    oz2_const::threads_invscaling = 128;
-#elif GEMMul8_ARCH < 90
-    oz2_const::threads_scaling    = 512;
-    oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 64;
-#elif GEMMul8_ARCH < 100
-    oz2_const::threads_scaling    = 64;
-    oz2_const::threads_conv32i8u  = 128;
-    oz2_const::threads_invscaling = 128;
+#if defined(THREADS1)
+    oz2_const::threads_scaling = THREADS1;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_scaling = 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_scaling = (fastmode) ? ((lda8i > 4096) ? 512 : 128) : 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_scaling = (fastmode) ? ((lda8i >= 4096) ? 1024 : 256) : 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_scaling = (fastmode) ? ((lda8i >= 4096) ? 512 : 256) : 256;
 #else
-    oz2_const::threads_scaling    = 512;
-    oz2_const::threads_conv32i8u  = 256;
-    oz2_const::threads_invscaling = 512;
+    oz2_const::threads_scaling = 256;
 #endif
+
+#if defined(THREADS2)
+    oz2_const::threads_conv32i8u = THREADS2;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_conv32i8u = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_conv32i8u = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_conv32i8u = (sizeC > 16777216) ? 128 : 256;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_conv32i8u = 256;
+#else
+    oz2_const::threads_conv32i8u = 256;
+#endif
+
+#if defined(THREADS3)
+    oz2_const::threads_invscaling = THREADS3;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 80
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 89
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 90
+    oz2_const::threads_invscaling = 128;
+#elif defined(GEMMul8_ARCH) && GEMMul8_ARCH == 120
+    oz2_const::threads_invscaling = 512;
+#else
+    oz2_const::threads_invscaling = 256;
+#endif
+
     oz2_const::grids_invscaling = (m * n + oz2_const::threads_invscaling - 1) / oz2_const::threads_invscaling;
     oz2_const::grids_conv32i8u  = ((sizeC >> 2) + oz2_const::threads_conv32i8u - 1) / oz2_const::threads_conv32i8u;
 
@@ -289,7 +338,7 @@ std::vector<double> gemm<float>(cublasHandle_t handle,        // Handle to the c
     //      M := prod(modulus[all]),
     //      mod(Ni*Mi, modulus[i]) == 1.
     // C := C32f - round(C32f/M)*M
-    // C := diag(2^sftA) * C * diag(2^sftB)
+    // C := diag(2^-sftA) * C * diag(2^-sftB)
     //------------------------------
     timing_start(timetmp);
     oz2_util::inverse_scaling(num_moduli, m, n, C8u, m_pad, sizeC, C, ldc, sftA, sftB, *alpha, *beta);
