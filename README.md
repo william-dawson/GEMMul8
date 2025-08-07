@@ -12,7 +12,7 @@ GEMMul8 (GEMMulate): GEMM emulation using int8 matrix engines based on the Ozaki
 - [Acknowledgment](#acknowledgment)
 - [Contact](#contact)
 - [References](#references)
-- [Citation](#citation)
+- [Citations](#citations)
 - [License](#license)
 
 ## Build
@@ -150,7 +150,7 @@ Assistance with debugging the code was provided by:
 - Hiroyuki Ootomo, Katsuhisa Ozaki, and Rio Yokota. 2024. DGEMM on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 38, 4 (2024), 297--313.
 - Yuki Uchino, Katsuhisa Ozaki, and Toshiyuki Imamura. 2025. Performance enhancement of the Ozaki Scheme on integer matrix multiplication unit. The International Journal of High Performance Computing Applications 39, 3 (2025), 462--476.
 
-## Citation
+## Citations
 
 ```
 @misc{ozaki2025ozakischemeiigemmoriented,
@@ -161,6 +161,16 @@ Assistance with debugging the code was provided by:
       archivePrefix={arXiv},
       primaryClass={cs.MS},
       url={https://arxiv.org/abs/2504.08009},
+}
+
+@misc{uchino2025highperformancepowerefficientemulationmatrix,
+      title={High-Performance and Power-Efficient Emulation of Matrix Multiplication using INT8 Matrix Engines},
+      author={Yuki Uchino and Katsuhisa Ozaki and Toshiyuki Imamura},
+      year={2025},
+      eprint={2508.03984},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2508.03984},
 }
 
 and
