@@ -1,9 +1,8 @@
 function plot_flops(saveflag,savedir)
 
-% close all
-
-if nargin == 0
-    saveflag = false;
+arguments (Input)
+    saveflag (1,1) logical = false
+    savedir (1,1) string = ""
 end
 
 %% files
@@ -17,8 +16,14 @@ filename_d = strings(length(fileList_d),1);
 for i=1:length(fileList_d)
     filename_d(i) = string(fileList_d(i).name);
 end
+FontSize = 8;
 
 %% float
+fig = figure;
+fig.Position(1) = 100;
+fig.Position(3) = 1000;
+fig.Position(4) = 125*length(filename_f);
+t = tiledlayout(length(filename_f),6);
 for fn = 1:length(filename_f)
     filename = filename_f(fn);
     opts = detectImportOptions(filename);
@@ -34,56 +39,93 @@ for fn = 1:length(filename_f)
     moduli_max = 15;
     xx = moduli_min:moduli_max;
     XLIM = [2 12];
-    
-    fig = figure;
-    fig.Position(3) = 1000;
-    fig.Position(4) = 250;
-    t = tiledlayout(1,length(n_list));
+
     for ni = 1:length(n_list)
+        nexttile(ni + 6*(fn-1)); hold on;
+        ax = gca;
+        ax.XGrid = 'on';
+        ax.YGrid = 'on';
+        ax.XAxis.FontSize = FontSize-2;
+        ax.XAxis.TickDirection = 'out';
+        ax.YAxis.TickDirection = 'out';
+        xtickangle(0);
         SGEMM    = tflops(n == n_list(ni) & func == "SGEMM");
         SGEMM_TF = tflops(n == n_list(ni) & func == "SGEMM-TF32");
+        SGEMM_BF = tflops(n == n_list(ni) & func == "SGEMM-BF16X9");
         FP16TCEC = tflops(n == n_list(ni) & func == "FP16TCEC_SCALING");
         OS2_fast = tflops(n == n_list(ni) & contains(func,"OS2-fast"));
         OS2_accu = tflops(n == n_list(ni) & contains(func,"OS2-accu"));
-        nexttile; hold on; grid on;
         plot(xx, SGEMM*ones(size(xx)), mark(1,1), 'DisplayName', "SGEMM", 'LineWidth',1);
-        plot(xx, SGEMM_TF*ones(size(xx)), mark(5,1), 'DisplayName', "SGEMM-TF32", 'LineWidth',1);
-        if ~isempty(FP16TCEC)
-            plot(xx, FP16TCEC*ones(size(xx)), mark(2,2), 'DisplayName', "cuMpSGEMM", 'LineWidth',1);
+        plot(xx, SGEMM_TF*ones(size(xx)), mark(1,2), 'DisplayName', "TF32GEMM", 'LineWidth',1);
+        if ~isempty(SGEMM_BF)
+            plot(xx, SGEMM_BF*ones(size(xx)), mark(1,5), 'DisplayName', "BF16x9", 'LineWidth',1);
         end
-        plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
-        plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
-        
-        title("n=" + n_list(ni),'FontSize',14);
-        ylim('padded');
+        if ~isempty(FP16TCEC)
+            plot(xx, FP16TCEC*ones(size(xx)), mark(1,6), 'DisplayName', "cuMpSGEMM", 'LineWidth',1);
+        end
+        plot(xx, OS2_fast, mark(1,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
+        plot(xx, OS2_accu, mark(1,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
+
+        xr = xregion(6,9,FaceColor="r");
+        set(get(get(xr, 'Annotation'), 'LegendInformation'), 'IconDisplayStyle', 'off');
+
         xlim(XLIM);
-        xlabel("#moduli",'FontSize',14);
-        set(gca,'FontSize',14);
+        xticks(XLIM(1):XLIM(2));
+        str = string(XLIM(1):XLIM(2));
+        str(1:2:end) = "";
+        xticklabels(str)
+        ylim('padded');
+        yl = ylim;
+        for inc = [200,150,100,50,25,10,5,2,1]
+            yticks(0:inc:yl(2));
+            yt = yticks;
+            if length(yt) >= 4
+                break
+            end
+        end
+        set(gca,'FontSize',FontSize);
+        title("n=" + n_list(ni),'FontSize',FontSize+2);
     end
     lgd = legend;
-    lgd.Layout.Tile = 'east'; %'south';
-    lgd.NumColumns = 1; %length(func_list);
-    lgd.FontSize = 14;
+    lgd.Layout.Tile = 6*fn;
+    lgd.NumColumns = 1;
+    lgd.FontSize = FontSize+2;
     pattern = "time_(.*?)_2025";
     match = regexp(filename, pattern, 'tokens');
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env, 'FontSize',14);
-    ylabel(t, "TFLOPS",'FontSize',14);
-    t.TileSpacing = "tight";
-    t.Padding = "compact";
-    
-    if saveflag
-        pattern = "(.*?)_2025";
-        match = regexp(filename, pattern, 'tokens');
-        figname = match{1}{1};
-        savefig(fig,savedir+figname);
-        exportgraphics(fig,savedir+figname + ".png",'Resolution',600);
+    if contains(env,"GH200")
+        title(lgd, "GH200", 'FontSize',FontSize+2);
+    elseif contains(env,"A100")
+        title(lgd, "A100 SXM4", 'FontSize',FontSize+2);
+    elseif contains(env,"RTX 4090")
+        title(lgd, "RTX 4090", 'FontSize',FontSize+2);
+    elseif contains(env,"RTX 5080")
+        title(lgd, "RTX 5080", 'FontSize',FontSize+2);
+    else
+        title(t, env, 'FontSize',FontSize+2);
     end
+end
+xlabel(t,"Number of moduli",'FontSize',FontSize+2);
+ylabel(t,"TFLOPS",'FontSize',FontSize+2);
+t.TileSpacing = "tight";
+t.Padding = "compact";
+
+if saveflag
+    pattern = "(.*?)_NVIDIA";
+    match = regexp(filename, pattern, 'tokens');
+    figname = match{1}{1};
+    savefig(fig,savedir+figname);
+    exportgraphics(fig,savedir+figname + ".png",'Resolution',600);
 end
 
 %% double
+fig = figure;
+fig.Position(1) = 100;
+fig.Position(3) = 1000;
+fig.Position(4) = 125*length(filename_d);
+t = tiledlayout(length(filename_d),6);
 for fn = 1:length(filename_d)
     filename = filename_d(fn);
     opts = detectImportOptions(filename);
@@ -99,63 +141,84 @@ for fn = 1:length(filename_d)
     moduli_max = 20;
     xx = moduli_min:moduli_max;
     XLIM = [8 moduli_max];
-    
-    fig = figure;
-    fig.Position(3) = 1000;
-    fig.Position(4) = 250;
-    t = tiledlayout(1,length(n_list));
+
     for ni = 1:length(n_list)
+        nexttile(ni + 6*(fn-1)); hold on;
+        ax = gca;
+        ax.XGrid = 'on';
+        ax.YGrid = 'on';
+        ax.XAxis.FontSize = FontSize-2;
+        ax.XAxis.TickDirection = 'out';
+        ax.YAxis.TickDirection = 'out';
+        xtickangle(0);
         DGEMM    = tflops(n == n_list(ni) & func == "DGEMM");
         ozIMMU_EF_8 = tflops(n == n_list(ni) & contains(func,"ozIMMU_EF-8"));
         ozIMMU_EF_9 = tflops(n == n_list(ni) & contains(func,"ozIMMU_EF-9"));
         OS2_fast = tflops(n == n_list(ni) & contains(func,"OS2-fast"));
         OS2_accu = tflops(n == n_list(ni) & contains(func,"OS2-accu"));
-        nexttile; hold on; grid on;
         plot(xx, DGEMM*ones(size(xx)), mark(1,1), 'DisplayName', "DGEMM", 'LineWidth',1);
         if ~isempty(ozIMMU_EF_8)
-            plot(xx, ozIMMU_EF_8*ones(size(xx)), mark(5,2), 'DisplayName', "ozIMMU\_EF-8", 'LineWidth',1);
+            plot(xx, ozIMMU_EF_8*ones(size(xx)), mark(1,2), 'DisplayName', "ozIMMU\_EF-8", 'LineWidth',1);
         end
         if ~isempty(ozIMMU_EF_9)
-            plot(xx, ozIMMU_EF_9*ones(size(xx)), mark(6,2), 'DisplayName', "ozIMMU\_EF-9", 'LineWidth',1);
+            plot(xx, ozIMMU_EF_9*ones(size(xx)), mark(1,5), 'DisplayName', "ozIMMU\_EF-9", 'LineWidth',1);
         end
-        plot(xx, OS2_fast, mark(3,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
-        plot(xx, OS2_accu, mark(4,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
-        
-        title("n=" + n_list(ni),'FontSize',14);
-        ylim('padded');
+        plot(xx, OS2_fast, mark(1,3), 'DisplayName', "OS II-fast", 'LineWidth',1);
+        plot(xx, OS2_accu, mark(1,4), 'DisplayName', "OS II-accu", 'LineWidth',1);
+
+        xr = xregion(14,18,FaceColor="r");
+        set(get(get(xr, 'Annotation'), 'LegendInformation'), 'IconDisplayStyle', 'off');
+
         xlim(XLIM);
-        xticks(XLIM(1):2:XLIM(2));
-        xlabel("#moduli",'FontSize',14);
-        set(gca,'FontSize',14);
+        xticks(XLIM(1):XLIM(2));
+        str = string(XLIM(1):XLIM(2));
+        str(1:2:end) = "";
+        xticklabels(str)
+        ylim('padded');
+        yl = ylim;
+        for inc = [200,150,100,50,25,10,5,2,1]
+            yticks(0:inc:yl(2));
+            yt = yticks;
+            if length(yt) >= 4
+                break
+            end
+        end
+        set(gca,'FontSize',FontSize);
+        title("n=" + n_list(ni),'FontSize',FontSize+2);
     end
     lgd = legend;
-    lgd.Layout.Tile = 'east'; %'south';
-    lgd.NumColumns = 1; %length(func_list);
-    lgd.FontSize = 14;
+    lgd.Layout.Tile = 6*fn;
+    lgd.NumColumns = 1;
+    lgd.FontSize = FontSize+2;
     pattern = "time_(.*?)_2025";
     match = regexp(filename, pattern, 'tokens');
     env = match{1}{1};
     env = replace(env,"_"," ");
     env = replace(env,"-"," ");
-    title(t, env, 'FontSize',14);
-    ylabel(t, "TFLOPS",'FontSize',14);
-    t.TileSpacing = "tight";
-    t.Padding = "compact";
-    
-    if saveflag
-        pattern = "(.*?)_2025";
-        match = regexp(filename, pattern, 'tokens');
-        figname = match{1}{1};
-        savefig(fig,savedir+figname);
-        exportgraphics(fig,savedir+figname + ".png",'Resolution',600);
+    if contains(env,"GH200")
+        title(lgd, "GH200", 'FontSize',FontSize+2);
+    elseif contains(env,"A100")
+        title(lgd, "A100 SXM4", 'FontSize',FontSize+2);
+    elseif contains(env,"RTX 4090")
+        title(lgd, "RTX 4090", 'FontSize',FontSize+2);
+    elseif contains(env,"RTX 5080")
+        title(lgd, "RTX 5080", 'FontSize',FontSize+2);
+    else
+        title(t, env, 'FontSize',FontSize+2);
     end
 end
+xlabel(t,"Number of moduli",'FontSize',FontSize+2);
+ylabel(t, "TFLOPS",'FontSize',FontSize+2);
+t.TileSpacing = "tight";
+t.Padding = "compact";
+
+if saveflag
+    pattern = "(.*?)_NVIDIA";
+    match = regexp(filename, pattern, 'tokens');
+    figname = match{1}{1};
+    savefig(fig,savedir+figname);
+    exportgraphics(fig,savedir+figname + ".png",'Resolution',600);
+end
 
 end
 
-%%
-function m = mark(i,j)
-markers = {"-", "--", "-d", "-+", "-o", "-s", "-x", "-p", "-h", "-^", "-v", "->", "-<"};
-colors = {"k", "m", "r", "b", "g"};
-m = markers{i} + colors(j);
-end
